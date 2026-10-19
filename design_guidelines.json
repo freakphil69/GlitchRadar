@@ -1,0 +1,151 @@
+{
+  "app_name": "GlitchRadar.io",
+  "personality": "7 Dark-First Utility DARK (Trading Terminal Variant)",
+  "personality_one_liner": "A high-speed trading terminal interface built for rapid discovery and execution of price errors and coupon glitches before patching.",
+  "color": {
+    "surface": "#0D1117",
+    "onSurface": "#E6EDF3",
+    "surfaceSecondary": "#161B22",
+    "onSurfaceSecondary": "#C9D1D9",
+    "surfaceTertiary": "#21262D",
+    "onSurfaceTertiary": "#8B949E",
+    "surfaceInverse": "#F0F6FC",
+    "onSurfaceInverse": "#0D1117",
+    "brand": "#FF5722",
+    "brandPrimary": "#FF5722",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#E64A19",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#2A1713",
+    "onBrandTertiary": "#FFAB91",
+    "success": "#238636",
+    "onSuccess": "#FFFFFF",
+    "warning": "#D29922",
+    "onWarning": "#0D1117",
+    "error": "#F85149",
+    "onError": "#FFFFFF",
+    "info": "#388BFd",
+    "onInfo": "#FFFFFF",
+    "border": "#30363D",
+    "borderStrong": "#FF5722",
+    "divider": "#21262D",
+    "muted": "#8B949E",
+    "onBrand": "#FFFFFF"
+  },
+  "typography": {
+    "displayFontFamily": "Barlow Condensed",
+    "textFontFamily": "Satoshi",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Dense terminal spacing with compact paddings, hairline borders, and fixed tabular alignment for instant readability.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+  "shadow_tier": "0",
+  "navigation": "bottom_tabs",
+  "icon_set": "MaterialCommunityIcons",
+  "glassmorphism": {
+    "enabled": false,
+    "do's": [
+      "Use solid obsidian and graphite slate containers with hairline 1pt borders (#30363D) for maximum scanning speed",
+      "Use tabular monospace/condensed typography for countdown timers and price deltas"
+    ],
+    "dont's": [
+      "No blur or glassmorphism which slows down data scanning speed",
+      "No soft pastel backgrounds or rounded playful cards"
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "none",
+      "android": "none",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "none",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "LiveRadarFeed",
+      "purpose": "Real-time streaming feed of price errors, coupon glitches, and stackable promo exploits with countdown timers.",
+      "states": {
+        "loading": "Terminal scanning stream loading spinner with pulse effect",
+        "empty": "No active radar signals detected. Trigger AI Scout scan or adjust filter parameters.",
+        "error": "Terminal uplink disconnected. Retry connection button."
+      },
+      "layout": "Sticky top market-status ticker banner, horizontal category & type filter chips, vertically scrolling high-density glitch cards with live countdown timers, discount % badges, and quick-claim buttons."
+    },
+    {
+      "name": "AIScoutScanner",
+      "purpose": "Autonomous crawler and heuristic analyzer that hunts for live online glitches across thousands of merchant endpoints.",
+      "states": {
+        "loading": "Neural radar sweeping active endpoints...",
+        "empty": "No recent scout logs available.",
+        "error": "Scout connection timeout. Restart scan."
+      },
+      "layout": "Interactive radar sweep visualizer at top, real-time activity log terminal stream below, and a prominent 'Execute Full Scan' button sticky at bottom."
+    },
+    {
+      "name": "GlitchDetail",
+      "purpose": "Comprehensive glitch breakdown including AI step-by-step execution instructions, risk score, success probability, and direct shop link.",
+      "states": {
+        "loading": "Decrypting glitch protocol...",
+        "empty": "Glitch record not found.",
+        "error": "Failed to load glitch parameters."
+      },
+      "layout": "Hero product image with dark gradient scrim, countdown timer pill, profit delta badge, tabbed breakdown (Execution steps, Price History, Risk Analysis), and fixed sticky 'Copy Code & Open Merchant' CTA."
+    },
+    {
+      "name": "StashWatchlist",
+      "purpose": "Saved glitches, tracked price errors, and claimed deal history with total realized savings counter.",
+      "states": {
+        "loading": "Loading stash ledger...",
+        "empty": "Stash is empty. Save live radar signals from the feed.",
+        "error": "Failed to sync stash."
+      },
+      "layout": "Top summary banner showing total potential savings and active watches, followed by a segmented list of saved glitches with quick-action remove/claim buttons."
+    },
+    {
+      "name": "TerminalSettings",
+      "purpose": "User preferences for instant push alerts on critical glitches, category thresholds, and AI scout sensitivity.",
+      "states": {
+        "loading": "Loading preferences...",
+        "empty": "No preferences configured.",
+        "error": "Failed to save settings."
+      },
+      "layout": "Grouped terminal settings sections with toggle switches, threshold sliders for minimum discount %, and API node selector."
+    }
+  ],
+  "images": {
+    "hero_radar": {
+      "url": "https://images.unsplash.com/photo-1640552435845-d65c23b75934?q=80&w=1200&auto=format&fit=crop",
+      "alt": "Dark cyber trading terminal interface with neon accent"
+    },
+    "scout_backdrop": {
+      "url": "https://images.unsplash.com/photo-1613535167523-0da946b83ffb?q=80&w=1200&auto=format&fit=crop",
+      "alt": "Night city neon grid backdrop for AI scout"
+    }
+  },
+  "instructions_to_main_agent": "Ensure absolute adherence to Personality 7 (Dark-First Utility DARK - Trading Terminal Variant). Use a dark charcoal/obsidian base (#0D1117), 1pt hairline borders (#30363D), and a warm signal orange accent (#FF5722) for urgency and countdowns. All screens must use dense terminal layouts with tabular numbers. Include live countdown timers, AI Scout scanning logs, step-by-step exploit guides, and a sticky primary CTA on actionable screens. No purple, no indigo, no blue navigation bars. Zero emoji in system UI."
+}
