@@ -6,6 +6,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { Image } from "expo-image";
 import * as Clipboard from "expo-clipboard";
 import * as WebBrowser from "expo-web-browser";
 import * as Haptics from "expo-haptics";
@@ -13,10 +14,11 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import MaterialCommunityIcons from "@react-native-vector-icons/material-design-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { Age } from "@/src/components/Age";
 import { ChipRow } from "@/src/components/ChipRow";
 import { Countdown } from "@/src/components/Countdown";
 import { useToast } from "@/src/components/Toast";
-import { fmtDateTime, fmtMoney, fmtPrice } from "@/src/lib/format";
+import { fmtDateTime, fmtMoney, fmtPrice, imgSrc } from "@/src/lib/format";
 import { useEnrich, useGlitch, useReportDead } from "@/src/lib/queries";
 import { useIsStashed, useStashActions } from "@/src/lib/stash";
 import { RISK_LABELS, TYPE_LABELS } from "@/src/lib/types";
@@ -66,15 +68,25 @@ export default function GlitchDetailScreen() {
       await Clipboard.setStringAsync(glitch.coupon_code);
       toast(`Code ${glitch.coupon_code} kopiert`, "success");
     }
+    WebBrowser.openBrowserAsync(glitch.source_url);
+  };
+
+  const onCopy = async () => {
+    if (!glitch?.coupon_code) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await Clipboard.setStringAsync(glitch.coupon_code);
+    toast(`Code ${glitch.coupon_code} kopiert`, "success");
+  };
+
+  const isAd = !!glitch?.affiliate_url && glitch.affiliate_url !== glitch.url;
+
+  const onShop = () => {
+    if (!glitch) return;
     const link =
       glitch.affiliate_url ??
       glitch.url ??
       `https://www.google.com/search?q=${encodeURIComponent(`${glitch.shop} ${glitch.title}`)}`;
-    if (link) {
-      WebBrowser.openBrowserAsync(link);
-    } else if (!glitch.coupon_code) {
-      toast("Kein Shop-Link vorhanden", "info");
-    }
+    WebBrowser.openBrowserAsync(link);
   };
 
   const onStash = () => {
@@ -144,19 +156,37 @@ export default function GlitchDetailScreen() {
         </View>
 
         <View style={styles.hero}>
-          <Text style={styles.shop}>{glitch.shop} · {glitch.category.toUpperCase()}</Text>
+          {glitch.image_url ? (
+            <Image source={{ uri: imgSrc(glitch.image_url) }} style={styles.heroImage} contentFit="contain" transition={200} />
+          ) : null}
+          <Text style={styles.shop}>
+            {glitch.shop} · {glitch.category.toUpperCase()}
+            {glitch.temperature != null ? ` · ${glitch.temperature}°` : ""}
+          </Text>
           <Text style={styles.title}>{glitch.title}</Text>
 
-          <View style={styles.priceRow}>
-            <Text style={styles.priceGlitched}>{fmtMoney(glitch.glitched_price)}</Text>
-            <Text style={styles.priceOriginal}>{fmtPrice(glitch.original_price)} €</Text>
-            <View style={styles.discountBadge}>
-              <Text style={styles.discountText}>-{glitch.discount_pct}%</Text>
+          {glitch.glitched_price != null || glitch.discount_pct > 0 ? (
+            <View style={styles.priceRow}>
+              {glitch.glitched_price != null ? (
+                <Text style={styles.priceGlitched}>{fmtMoney(glitch.glitched_price)}</Text>
+              ) : null}
+              {glitch.original_price != null ? (
+                <Text style={styles.priceOriginal}>{fmtPrice(glitch.original_price)} €</Text>
+              ) : null}
+              {glitch.discount_pct > 0 ? (
+                <View style={styles.discountBadge}>
+                  <Text style={styles.discountText}>-{glitch.discount_pct}%</Text>
+                </View>
+              ) : null}
             </View>
-          </View>
+          ) : null}
 
           <View style={styles.heroFooter}>
-            <Countdown expiresAt={glitch.expires_at} size="lg" />
+            {glitch.expires_at ? (
+              <Countdown expiresAt={glitch.expires_at} size="lg" />
+            ) : (
+              <Age publishedAt={glitch.published_at} size="lg" />
+            )}
             <View style={styles.successBox}>
               <Text style={styles.successLabel}>TREFFERQUOTE</Text>
               <Text style={[styles.successValue, { color: riskColor }]}>{glitch.success_rate}%</Text>
@@ -179,7 +209,7 @@ export default function GlitchDetailScreen() {
             </View>
             <Pressable
               testID="detail-copy-button"
-              onPress={onCta}
+              onPress={onCopy}
               style={styles.copyBtn}
               hitSlop={6}
             >
@@ -259,30 +289,38 @@ export default function GlitchDetailScreen() {
           </View>
         ) : (
           <View style={styles.sectionCard}>
-            <Text style={styles.subTitle}>WAS PASIERT IST</Text>
-            <Text style={styles.bodyText}>{glitch.description}</Text>
-            <Text style={[styles.subTitle, { marginTop: spacing.md }]}>WARUM ES FUNKTIONIERT</Text>
-            <Text style={styles.bodyText}>{glitch.why_it_works || "—"}</Text>
+            <Text style={styles.subTitle}>AUS DEM ORIGINAL-BEITRAG</Text>
+            <Text style={styles.bodyText}>{glitch.description || "—"}</Text>
+            {glitch.why_it_works ? (
+              <>
+                <Text style={[styles.subTitle, { marginTop: spacing.md }]}>WARUM ES FUNKTIONIERT</Text>
+                <Text style={styles.bodyText}>{glitch.why_it_works}</Text>
+              </>
+            ) : null}
             <Text style={[styles.subTitle, { marginTop: spacing.md }]}>PROTOKOLL</Text>
             <View style={styles.metaRow}>
               <Text style={styles.metaKey}>SHOP</Text>
               <Text style={styles.metaValue}>{glitch.shop}</Text>
             </View>
             <View style={styles.metaRow}>
-              <Text style={styles.metaKey}>ERSTELLT</Text>
-              <Text style={styles.metaValue}>{fmtDateTime(glitch.created_at)}</Text>
+              <Text style={styles.metaKey}>ONLINE GEFUNDEN</Text>
+              <Text style={styles.metaValue}>{fmtDateTime(glitch.published_at)}</Text>
             </View>
-            <View style={styles.metaRow}>
-              <Text style={styles.metaKey}>LÄUFT AB</Text>
-              <Text style={styles.metaValue}>{fmtDateTime(glitch.expires_at)}</Text>
-            </View>
+            {glitch.expires_at ? (
+              <View style={styles.metaRow}>
+                <Text style={styles.metaKey}>LÄUFT AB</Text>
+                <Text style={styles.metaValue}>{fmtDateTime(glitch.expires_at)}</Text>
+              </View>
+            ) : null}
             <View style={styles.metaRow}>
               <Text style={styles.metaKey}>QUELLE</Text>
-              <Text style={styles.metaValue}>
-                {glitch.source_label}
-                {glitch.scout_model ? ` · ${glitch.scout_model.toUpperCase()}` : ""}
-              </Text>
+              <Text style={styles.metaValue}>{glitch.source_label}</Text>
             </View>
+            <Pressable testID="detail-source-link" onPress={() => WebBrowser.openBrowserAsync(glitch.source_url)}>
+              <Text style={[styles.metaValue, { color: colors.info, textAlign: "left", marginTop: spacing.sm }]} numberOfLines={2}>
+                {glitch.source_url}
+              </Text>
+            </Pressable>
           </View>
         )}
       </ScrollView>
@@ -302,18 +340,19 @@ export default function GlitchDetailScreen() {
           </Pressable>
           <Pressable testID="detail-report-dead" onPress={onReportDead} style={[styles.secondaryBtn, { paddingHorizontal: spacing.md }]}>
             <MaterialCommunityIcons name="skull-outline" size={18} color={colors.error} />
-            <Text style={[styles.secondaryText, { color: colors.error }]}>TOT MELDEN</Text>
+            <Text style={[styles.secondaryText, { color: colors.error }]}>TOT</Text>
+          </Pressable>
+          <Pressable testID="detail-shop-button" onPress={onShop} style={[styles.secondaryBtn, { flex: 1 }]}>
+            <MaterialCommunityIcons name="storefront-outline" size={18} color={colors.onSurfaceSecondary} />
+            <Text style={[styles.secondaryText, { color: colors.onSurfaceSecondary }]}>
+              {glitch.affiliate_url ?? glitch.url ? "ZUM SHOP" : "SHOP SUCHEN"}
+            </Text>
+            {isAd ? <Text testID="detail-ad-label" style={styles.adTag}>ANZEIGE</Text> : null}
           </Pressable>
         </View>
         <Pressable testID="detail-cta-button" onPress={onCta} style={styles.ctaButton}>
           <Text style={styles.ctaText}>
-            {glitch.coupon_code
-              ? (glitch.affiliate_url ?? glitch.url)
-                ? "CODE KOPIEREN & SHOP ÖFFNEN"
-                : "CODE KOPIEREN"
-              : (glitch.affiliate_url ?? glitch.url)
-                ? "SHOP ÖFFNEN"
-                : "ZUM SHOP SUCHEN"}
+            {glitch.coupon_code ? "CODE KOPIEREN & ORIGINAL ÖFFNEN" : "ORIGINAL-BEITRAG ÖFFNEN"}
           </Text>
         </Pressable>
       </View>
@@ -330,6 +369,24 @@ const useStyles = makeStyles((c) => ({
     alignItems: "center",
     justifyContent: "center",
     gap: spacing.md,
+  },
+  heroImage: {
+    width: "100%",
+    height: 180,
+    borderRadius: radius.sm,
+    backgroundColor: c.surfaceTertiary,
+    marginBottom: spacing.xs,
+  },
+  adTag: {
+    fontFamily: fonts.mono,
+    fontSize: 9,
+    letterSpacing: 1,
+    color: c.warning,
+    borderWidth: 1,
+    borderColor: c.warning,
+    borderRadius: radius.sm,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
   },
   headerRow: {
     flexDirection: "row",

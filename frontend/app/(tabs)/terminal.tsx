@@ -1,18 +1,15 @@
-import { Pressable, ScrollView, Switch, Text, View } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
+import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@react-native-vector-icons/material-design-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ChipRow } from "@/src/components/ChipRow";
 import { useToast } from "@/src/components/Toast";
+import { useSubscription } from "@/src/lib/revenuecat";
 import { useStashActions } from "@/src/lib/stash";
 import { useSettings, useUpdateSettings } from "@/src/lib/settings";
+import { usesNativeTabs } from "@/src/navigation";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
-
-const INTERVAL_CHIPS = [
-  { key: "15", label: "15 MIN" },
-  { key: "30", label: "30 MIN" },
-  { key: "60", label: "60 MIN" },
-];
 
 const DISCOUNT_CHIPS = [
   { key: "0", label: "ALLE" },
@@ -22,59 +19,57 @@ const DISCOUNT_CHIPS = [
 ];
 
 const MODEL_STACK = [
-  { role: "SCOUT", model: "GPT 5.6 TERRA", job: "Findet neue Glitches" },
-  { role: "SCORING", model: "GEMINI 3 FLASH", job: "Risiko + Trefferquote" },
-  { role: "ANALYST", model: "CLAUDE SONNET 5.5", job: "Schritt-für-Schritt-Pläne" },
+  { role: "QUELLEN", model: "MYDEALZ + DEALDOKTOR", job: "Echte Funde aus Live-Feeds, alle 10 Min" },
+  { role: "SCORING", model: "GEMINI 3 FLASH", job: "Bewertet Risiko + Trefferquote" },
+  { role: "ANALYST", model: "CLAUDE SONNET 5.5", job: "Schritt-für-Schritt-Pläne zu echten Funden" },
 ];
 
 export default function TerminalScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { colors } = useTheme();
   const styles = useStyles();
   const toast = useToast();
   const settings = useSettings();
   const update = useUpdateSettings();
   const stashActions = useStashActions();
+  const { isSubscribed } = useSubscription();
+  const bottomChrome = usesNativeTabs ? insets.bottom : 0;
 
   const onClearStash = () => {
     stashActions.clear.mutate();
     toast("Stash geleert", "info");
   };
 
+  const links = [
+    { id: "pro", icon: "crown", title: isSubscribed ? "PRO ist aktiv" : "GlitchRadar PRO holen", text: "Unbegrenzte Scans und KI-Pläne", to: "/pro" },
+    { id: "scout", icon: "radar", title: "Scout & Scan-Protokoll", text: "Live-Quellen manuell abfragen", to: "/scout" },
+    { id: "legal", icon: "scale-balance", title: "Impressum & Datenschutz", text: "Rechtliches und Werbehinweis", to: "/legal" },
+  ] as const;
+
   return (
     <View style={styles.screen}>
       <ScrollView
-        contentContainerStyle={{ paddingTop: insets.top + 12, paddingBottom: spacing.xl }}
+        contentContainerStyle={{ paddingTop: insets.top + 12, paddingBottom: bottomChrome + spacing.xl }}
         showsVerticalScrollIndicator={false}
       >
         <Text style={styles.title}>TERMINAL</Text>
         <Text style={styles.subtitle}>Scanner-Konfiguration und System-Info.</Text>
 
-        <Text style={styles.sectionTitle}>SCANNER</Text>
         <View style={styles.card}>
-          <View style={styles.row}>
-            <View style={{ flex: 1, paddingRight: spacing.md }}>
-              <Text style={styles.rowTitle}>Auto-Scan beim Start</Text>
-              <Text style={styles.rowText}>Scout legt automatisch los, wenn der letzte Scan zu alt ist.</Text>
+          {links.map((l, idx) => (
+            <View key={l.id}>
+              {idx > 0 && <View style={styles.divider} />}
+              <Pressable testID={`terminal-link-${l.id}`} onPress={() => router.push(l.to)} style={styles.row}>
+                <MaterialCommunityIcons name={l.icon} size={20} color={colors.brandPrimary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.rowTitle}>{l.title}</Text>
+                  <Text style={styles.rowText}>{l.text}</Text>
+                </View>
+                <MaterialCommunityIcons name="chevron-right" size={20} color={colors.muted} />
+              </Pressable>
             </View>
-            <Switch
-              testID="setting-auto-scan-switch"
-              value={settings.autoScan}
-              onValueChange={(v) => update.mutate({ autoScan: v })}
-              trackColor={{ false: colors.surfaceTertiary, true: colors.brandPrimary }}
-              thumbColor="#FFFFFF"
-            />
-          </View>
-          <View style={styles.divider} />
-          <View style={{ paddingTop: spacing.sm }}>
-            <Text style={styles.rowTitle}>Scan-Intervall</Text>
-            <Text style={styles.rowText}>Mindestabstand zwischen automatischen Scans.</Text>
-            <ChipRow
-              options={INTERVAL_CHIPS}
-              value={String(settings.scanIntervalMin)}
-              onChange={(k) => update.mutate({ scanIntervalMin: Number(k) })}
-            />
-          </View>
+          ))}
         </View>
 
         <Text style={styles.sectionTitle}>FILTER</Text>
@@ -88,7 +83,7 @@ export default function TerminalScreen() {
           />
         </View>
 
-        <Text style={styles.sectionTitle}>MODELL-STACK</Text>
+        <Text style={styles.sectionTitle}>QUELLEN & MODELLE</Text>
         <View style={styles.card}>
           {MODEL_STACK.map((m, idx) => (
             <View key={m.role} style={{ gap: 2 }}>
@@ -126,9 +121,9 @@ export default function TerminalScreen() {
         <View style={styles.disclaimer}>
           <Text style={styles.disclaimerTitle}>HINWEIS</Text>
           <Text style={styles.disclaimerText}>
-            Funde werden vom KI-Scout generiert (Simulation) und dienen der Demonstration. Shops können
-            Preisfehler annehmen oder stornieren — rechne immer mit Storno. Nutze Käuferschutz, mache
-            Screenshots und bestelle nur, was du wirklich brauchst.
+            Funde stammen aus öffentlichen Deal-Feeds (mydealz, DealDoktor) — immer mit Link zum Original.
+            Shops können Preisfehler stornieren, rechne immer damit. Nutze Käuferschutz, mache Screenshots
+            und bestelle nur, was du wirklich brauchst.
           </Text>
         </View>
       </ScrollView>

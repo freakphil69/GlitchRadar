@@ -1,12 +1,14 @@
 import { Pressable, Text, View } from "react-native";
+import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown } from "react-native-reanimated";
 import MaterialCommunityIcons from "@react-native-vector-icons/material-design-icons";
 
+import { Age } from "@/src/components/Age";
 import { Countdown } from "@/src/components/Countdown";
 import { useToast } from "@/src/components/Toast";
-import { fmtMoney } from "@/src/lib/format";
+import { fmtMoney, imgSrc } from "@/src/lib/format";
 import { useIsStashed, useStashActions } from "@/src/lib/stash";
 import { RISK_LABELS, TYPE_LABELS, type Glitch } from "@/src/lib/types";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -44,31 +46,50 @@ export function GlitchCard({ glitch, index = 0 }: { glitch: Glitch; index?: numb
           <View style={styles.typeBadge}>
             <Text style={styles.typeBadgeText}>{TYPE_LABELS[glitch.type]}</Text>
           </View>
-          <Text style={styles.shop}>{glitch.shop}</Text>
+          {glitch.temperature != null ? <Text style={styles.temp}>{glitch.temperature}°</Text> : null}
+          <Text style={styles.shop} numberOfLines={1}>{glitch.shop}</Text>
           <View style={styles.riskRow}>
             <View style={[styles.riskDot, { backgroundColor: riskColor }]} />
             <Text style={styles.riskText}>{RISK_LABELS[glitch.risk_level]} · {glitch.success_rate}%</Text>
           </View>
         </View>
 
-        <Text style={styles.title} numberOfLines={2}>
-          {glitch.title}
-        </Text>
-
-        <Text style={styles.desc} numberOfLines={2}>
-          {glitch.description}
-        </Text>
-
-        <View style={styles.priceRow}>
-          <Text style={styles.priceGlitched}>{fmtMoney(glitch.glitched_price)}</Text>
-          <Text style={styles.priceOriginal}>{fmtMoney(glitch.original_price)}</Text>
-          <View style={styles.discountBadge}>
-            <Text style={styles.discountText}>-{glitch.discount_pct}%</Text>
+        <View style={styles.bodyRow}>
+          {glitch.image_url ? (
+            <Image source={{ uri: imgSrc(glitch.image_url) }} style={styles.thumb} contentFit="cover" transition={150} />
+          ) : null}
+          <View style={{ flex: 1, gap: 4 }}>
+            <Text style={styles.title} numberOfLines={2}>
+              {glitch.title}
+            </Text>
+            <Text style={styles.desc} numberOfLines={2}>
+              {glitch.description}
+            </Text>
           </View>
         </View>
 
+        {glitch.glitched_price != null || glitch.discount_pct > 0 ? (
+          <View style={styles.priceRow}>
+            {glitch.glitched_price != null ? (
+              <Text style={styles.priceGlitched}>{fmtMoney(glitch.glitched_price)}</Text>
+            ) : null}
+            {glitch.original_price != null ? (
+              <Text style={styles.priceOriginal}>{fmtMoney(glitch.original_price)}</Text>
+            ) : null}
+            {glitch.discount_pct > 0 ? (
+              <View style={styles.discountBadge}>
+                <Text style={styles.discountText}>-{glitch.discount_pct}%</Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+
+        <Text style={styles.sourceLine} numberOfLines={1}>
+          QUELLE · {glitch.source_label}
+        </Text>
+
         <View style={styles.footerRow}>
-          <Countdown expiresAt={glitch.expires_at} />
+          {glitch.expires_at ? <Countdown expiresAt={glitch.expires_at} /> : <Age publishedAt={glitch.published_at} />}
           {glitch.coupon_code ? (
             <View style={styles.codeBadge}>
               <Text style={styles.codeText}>{glitch.coupon_code}</Text>
@@ -108,6 +129,28 @@ const useStyles = makeStyles((c) => ({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
+  },
+  bodyRow: {
+    flexDirection: "row",
+    gap: spacing.md,
+    alignItems: "flex-start",
+  },
+  thumb: {
+    width: 64,
+    height: 64,
+    borderRadius: radius.sm,
+    backgroundColor: c.surfaceTertiary,
+  },
+  temp: {
+    fontFamily: fonts.mono,
+    fontSize: 11,
+    color: c.brandPrimary,
+  },
+  sourceLine: {
+    fontFamily: fonts.mono,
+    fontSize: 10,
+    letterSpacing: 1,
+    color: c.muted,
   },
   typeBadge: {
     backgroundColor: c.brandTertiary,

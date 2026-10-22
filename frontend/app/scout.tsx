@@ -1,34 +1,46 @@
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
+import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
+import MaterialCommunityIcons from "@react-native-vector-icons/material-design-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { RadarSweep } from "@/src/components/RadarSweep";
 import { useToast } from "@/src/components/Toast";
 import { fmtClock, fmtDateTime, fmtMoney } from "@/src/lib/format";
 import { useRecentScans, useScan, useStats } from "@/src/lib/queries";
+import { useSubscription } from "@/src/lib/revenuecat";
+import { FREE_SCANS_PER_DAY, recordScan, scansUsedToday } from "@/src/lib/scanQuota";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
 const SCAN_LOG_LINES = [
-  "VERBINDE MIT SCOUT-KI (GPT 5.6 TERRA)…",
-  "PROTOKOLL RADAR-7 AKTIVIERT…",
-  "SCANNE 12.482 SHOP-ENDPUNKTE…",
-  "HORCHE IN KASSEN-SYSTEME…",
-  "PRÜFE GUTSCHEIN-ENGINE AUF DRIFT…",
-  "GEMINI 3 FLASH: RISIKO-BEWERTUNG LÄUFT…",
-  "FILTERE TOTE SIGNALE HERAUS…",
-  "VERGLEICHE MIT BEKANNTEM MUSTER-MEMORY…",
+  "VERBINDE MIT MYDEALZ · PREISFEHLER-GRUPPE…",
+  "LESE MYDEALZ · GUTSCHEINE…",
+  "LESE MYDEALZ · HOT-DEALS…",
+  "LESE DEALDOKTOR-FEED…",
+  "EXTRAHIERE PREISE, CODES UND HÄNDLER…",
+  "GEMINI 3 FLASH: RISIKO-BEWERTUNG NEUER FUNDE…",
+  "ENTFERNE DUPLIKATE…",
 ];
 
 export default function ScoutScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const { colors } = useTheme();
   const styles = useStyles();
   const toast = useToast();
   const scan = useScan();
   const scans = useRecentScans();
   const stats = useStats();
-  const [log, setLog] = useState<string[]>(["SCOUT BEREIT — WARTE AUF BEFEHL."]);
+  const { isSubscribed } = useSubscription();
+  const [used, setUsed] = useState(0);
+  const [log, setLog] = useState<string[]>(["SCOUT BEREIT — SERVER SCANNT ZUSÄTZLICH ALLE 10 MIN AUTOMATISCH."]);
+
+  useEffect(() => {
+    scansUsedToday().then(setUsed);
+  }, []);
+
+  const left = isSubscribed ? Infinity : Math.max(0, FREE_SCANS_PER_DAY - used);
 
   useEffect(() => {
     if (!scan.isPending) return;
@@ -36,39 +48,48 @@ export default function ScoutScreen() {
     const t = setInterval(() => {
       setLog((prev) => [...prev.slice(-40), SCAN_LOG_LINES[i % SCAN_LOG_LINES.length]]);
       i += 1;
-    }, 1300);
+    }, 900);
     return () => clearInterval(t);
   }, [scan.isPending]);
 
   const runScan = async () => {
     if (scan.isPending) return;
+    if (left <= 0) {
+      router.push("/pro");
+      return;
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setLog((prev) => [...prev.slice(-40), "BEFEHL ERHALTEN — SCOUT WIRD GESENDET…"]);
+    setLog((prev) => [...prev.slice(-40), "BEFEHL ERHALTEN — LIVE-QUELLEN WERDEN ABGEFRAGT…"]);
     try {
       const res = await scan.mutateAsync();
-      setLog((prev) => [...prev.slice(-40), `SCAN ABGESCHLOSSEN — ${res.glitches.length} NEUE SIGNALE ERFASST.`]);
-      toast(`${res.glitches.length} neue Glitches im Radar`, "success");
+      await recordScan();
+      setUsed((u) => u + 1);
+      setLog((prev) => [...prev.slice(-40), `SCAN ABGESCHLOSSEN — ${res.glitches.length} NEUE ECHTE FUNDE.`]);
+      toast(res.glitches.length ? `${res.glitches.length} neue Funde im Radar` : "Keine neuen Funde – alles aktuell", "success");
     } catch (e) {
       setLog((prev) => [...prev.slice(-40), `FEHLER: ${(e as Error).message}`]);
-      toast("Scan fehlgeschlagen", "error");
+      toast((e as Error).message || "Scan fehlgeschlagen", "error");
     }
   };
 
   return (
     <View style={styles.screen}>
       <ScrollView
-        contentContainerStyle={{ paddingTop: insets.top + 12, paddingBottom: spacing.xl }}
+        contentContainerStyle={{ paddingTop: insets.top + 12, paddingBottom: insets.bottom + spacing.xl }}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Text style={styles.title}>AI SCOUT</Text>
-          <Text style={styles.subtitle}>Autonomer Glitch-Crawler · GPT 5.6 TERRA + GEMINI 3 FLASH</Text>
+          <Pressable testID="scout-back-button" onPress={() => router.back()} style={styles.backBtn} hitSlop={8}>
+            <MaterialCommunityIcons name="arrow-left" size={22} color={colors.onSurface} />
+          </Pressable>
+          <Text style={styles.title}>SCOUT</Text>
+          <Text style={styles.subtitle}>Live-Quellen: mydealz (Preisfehler · Gutscheine · Hot) + DealDoktor</Text>
         </View>
 
         <View style={styles.radarWrap}>
           <RadarSweep size={230} active={scan.isPending} />
           <Text style={styles.radarStatus}>
-            {scan.isPending ? "SCANNE NETZWERK…" : scan.isError ? "SCOUT FEHLER" : "BEREIT"}
+            {scan.isPending ? "SCANNE LIVE-QUELLEN…" : scan.isError ? "SCOUT FEHLER" : "BEREIT"}
           </Text>
         </View>
 
@@ -79,9 +100,12 @@ export default function ScoutScreen() {
           style={[styles.scanButton, scan.isPending && { opacity: 0.6 }]}
         >
           <Text style={styles.scanButtonText}>
-            {scan.isPending ? "SCANNER LÄUFT…" : "SCAN STARTEN"}
+            {scan.isPending ? "SCANNER LÄUFT…" : left <= 0 ? "LIMIT ERREICHT — PRO HOLEN" : "JETZT SCANNEN"}
           </Text>
         </Pressable>
+        <Text testID="scout-quota" style={styles.quota}>
+          {isSubscribed ? "PRO · UNBEGRENZTE SCANS" : `${left} VON ${FREE_SCANS_PER_DAY} GRATIS-SCANS HEUTE ÜBRIG`}
+        </Text>
 
         <View style={styles.statsRow}>
           <View style={styles.statCell}>
@@ -153,6 +177,25 @@ const useStyles = makeStyles((c) => ({
   header: {
     paddingHorizontal: spacing.lg,
     gap: 4,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: c.border,
+    backgroundColor: c.surfaceSecondary,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: spacing.sm,
+  },
+  quota: {
+    fontFamily: fonts.mono,
+    fontSize: 11,
+    letterSpacing: 1,
+    color: c.muted,
+    textAlign: "center",
+    marginTop: spacing.sm,
   },
   title: {
     fontFamily: fonts.displayBold,

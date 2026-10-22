@@ -5,12 +5,13 @@ import * as Haptics from "expo-haptics";
 import MaterialCommunityIcons from "@react-native-vector-icons/material-design-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { Age } from "@/src/components/Age";
 import { ChipRow } from "@/src/components/ChipRow";
 import { Countdown } from "@/src/components/Countdown";
 import { useToast } from "@/src/components/Toast";
 import { fmtMoney } from "@/src/lib/format";
 import { useStash, useStashActions } from "@/src/lib/stash";
-import { TYPE_LABELS } from "@/src/lib/types";
+import { savingOf, TYPE_LABELS } from "@/src/lib/types";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
 export default function StashScreen() {
@@ -28,8 +29,8 @@ export default function StashScreen() {
   const watch = items.filter((i) => !i.claimed);
   const claimed = items.filter((i) => i.claimed);
   const shown = tab === "watch" ? watch : claimed;
-  const potential = watch.reduce((s, i) => s + (i.glitch.original_price - i.glitch.glitched_price), 0);
-  const realized = claimed.reduce((s, i) => s + (i.glitch.original_price - i.glitch.glitched_price), 0);
+  const potential = watch.reduce((s, i) => s + savingOf(i.glitch), 0);
+  const realized = claimed.reduce((s, i) => s + savingOf(i.glitch), 0);
 
   const onClaim = (id: string, claimedNow: boolean) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -119,7 +120,7 @@ export default function StashScreen() {
         }
         renderItem={({ item }) => {
           const g = item.glitch;
-          const stillActive = new Date(g.expires_at).getTime() > Date.now();
+          const stillActive = g.expires_at ? new Date(g.expires_at).getTime() > Date.now() : true;
           return (
             <View style={styles.item} testID={`stash-item-${g.id}`}>
               <Pressable style={{ flex: 1, gap: 4 }} onPress={() => router.push(`/glitch/${g.id}`)}>
@@ -131,12 +132,14 @@ export default function StashScreen() {
                   {g.title}
                 </Text>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 10, marginTop: 2 }}>
-                  <Text style={styles.itemDelta}>+{fmtMoney(g.original_price - g.glitched_price)}</Text>
-                  {stillActive ? (
-                    <Countdown expiresAt={g.expires_at} />
-                  ) : (
+                  {savingOf(g) > 0 ? <Text style={styles.itemDelta}>+{fmtMoney(savingOf(g))}</Text> : null}
+                  {!stillActive ? (
                     <Text style={styles.itemExpired}>ABGELAUFEN</Text>
-                  )}
+                  ) : g.expires_at ? (
+                    <Countdown expiresAt={g.expires_at} />
+                  ) : g.published_at ? (
+                    <Age publishedAt={g.published_at} />
+                  ) : null}
                 </View>
               </Pressable>
               <View style={styles.itemActions}>

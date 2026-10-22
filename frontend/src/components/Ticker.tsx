@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -15,10 +15,12 @@ export function Ticker({
   activeCount,
   savings,
   lastScanAt,
+  onScan,
 }: {
   activeCount?: number;
   savings?: number;
   lastScanAt?: string | null;
+  onScan?: () => void;
 }) {
   const { colors } = useTheme();
   const styles = useStyles();
@@ -47,6 +49,11 @@ export function Ticker({
       </View>
       <View style={{ flex: 1 }} />
       <Text style={styles.scanTime}>{lastScanAt ? `SCAN ${fmtClock(lastScanAt)}` : "KEIN SCAN"}</Text>
+      {onScan ? (
+        <Pressable testID="ticker-scan-button" onPress={onScan} style={styles.scanBtn} hitSlop={6}>
+          <Text style={styles.scanBtnText}>SCAN</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -88,5 +95,18 @@ const useStyles = makeStyles((c) => ({
     fontSize: 10,
     letterSpacing: 0.5,
     color: c.muted,
+  },
+  scanBtn: {
+    height: 30,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    backgroundColor: c.brandPrimary,
+    justifyContent: "center",
+  },
+  scanBtnText: {
+    fontFamily: fonts.mono,
+    fontSize: 11,
+    letterSpacing: 1,
+    color: c.onBrandPrimary,
   },
 }));

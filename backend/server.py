@@ -10,12 +10,15 @@ from typing import Annotated, Any, List, Optional
 
 from bson import ObjectId
 from dotenv import load_dotenv
-from fastapi import FastAPI, APIRouter, HTTPException
+from fastapi import FastAPI, APIRouter, HTTPException, Response
+import httpx
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, field_validator
 from starlette.middleware.cors import CORSMiddleware
 
 from emergentintegrations.llm.chat import LlmChat, UserMessage
+
+from feeds import FEEDS, fetch_all_feeds
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -33,7 +36,7 @@ api_router = APIRouter(prefix="/api")
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-GLITCH_TYPES = {"price_error", "coupon", "cashback", "shipping", "stack"}
+GLITCH_TYPES = {"price_error", "coupon", "cashback", "shipping", "stack", "deal"}
 RISK_LEVELS = {"low", "medium", "high"}
 SCOUT_MODEL = "gpt-5.6-terra"
 SCORER_MODEL = "gemini-3-flash-preview"
@@ -189,31 +192,38 @@ class GlitchDoc(BaseDocument):
     category: str = "Sonstiges"
     description: str = ""
     why_it_works: str = ""
-    original_price: float
-    glitched_price: float
+    original_price: Optional[float] = None
+    glitched_price: Optional[float] = None
     currency: str = "EUR"
     discount_pct: int = 0
     coupon_code: Optional[str] = None
     url: Optional[str] = None
     affiliate_url: Optional[str] = None
+    image_url: Optional[str] = None
+    source: str = "mydealz"
+    source_url: str = ""
+    temperature: Optional[int] = None
+    votes_up: int = 0
+    votes_down: int = 0
     risk_level: str = "medium"
     risk_note: str = ""
     risk_analysis: Optional[str] = None
-    success_rate: int = 70
-    source_label: str = "KI-SCOUT"
+    success_rate: int = 60
+    source_label: str = "MYDEALZ"
     scout_model: str = ""
     status: str = "active"
     enriched: bool = False
     instructions: List[str] = Field(default_factory=list)
     tips: List[str] = Field(default_factory=list)
     time_window_note: Optional[str] = None
-    expires_at: datetime
+    expires_at: Optional[datetime] = None
+    published_at: datetime = Field(default_factory=_now)
     created_at: datetime = Field(default_factory=_now)
 
-    @field_validator("expires_at", "created_at", mode="after")
+    @field_validator("expires_at", "published_at", "created_at", mode="after")
     @classmethod
-    def _tz_glitch(cls, v: datetime) -> datetime:
-        return _ensure_tz(v)
+    def _tz_glitch(cls, v: Optional[datetime]) -> Optional[datetime]:
+        return _ensure_tz(v) if v else v
 
     def out(self) -> dict:
         d = super().out()
@@ -228,7 +238,7 @@ class ScanDoc(BaseDocument):
     started_at: datetime = Field(default_factory=_now)
     finished_at: Optional[datetime] = None
     status: str = "running"
-    model_primary: str = SCOUT_MODEL
+    model_primary: str = "RSS · MYDEALZ + DEALDOKTOR"
     model_scorer: str = SCORER_MODEL
     found_count: int = 0
     total_savings: float = 0.0
@@ -244,27 +254,6 @@ class ScanDoc(BaseDocument):
 # LLM Scout pipeline: GPT 5.6 Terra (Funde) -> Gemini 3 Flash (Scoring)
 # ---------------------------------------------------------------------------
 
-SCOUT_SYSTEM = (
-    "Du bist der GLITCH-SCOUT von GlitchRadar.io, ein autonomer Scanner, der "
-    "Preisfehler, Gutschein-Glitches, Cashback-Fehler, Versandkosten-Bugs und "
-    "stapelbare Rabatt-Kombinationen in Onlineshops aufspürt, bevor sie geschlossen "
-    "werden. Du antwortest AUSSCHLIESSLICH mit validem JSON, ohne jeden zusätzlichen Text."
-)
-
-SCAN_PROMPT = """Scanne das Netzwerk nach {n} frischen Glitches aus deutschen bzw. EU-Onlineshops.
-Glitch-Typen (feld "type"): "price_error" (Preisfehler z.B. Dezimal-/Rundungsfehler), "coupon"
-(Gutschein-Code gibt mehr Rabatt als vorgesehen), "cashback" (Cashback-Multiplikator-Fehler),
-"shipping" (Versandkosten-Fehler), "stack" (Rabatte stapelbar, obwohl ausgeschlossen).
-Regeln:
-- Alles auf DEUTSCH, Preise in EUR, Titel im knackigen Alarm-Stil (max 70 Zeichen).
-- Realistische Szenarien, wie sie durch Konfigurations-, Rundungs- oder Kampagnenfehler entstehen.
-- Jeder Glitch hat ein kurzes Zeitfenster: expires_in_minutes zwischen 15 und 360.
-- Bei Gutscheinen/Guthaben: original_price = typischer Warenwert, glitched_price = Zahlbetrag nach Glitch.
-- Verteile die Typen und Shops bunt (z.B. Elektronik, Fashion, Supermarkt, Baumarkt, Food).
-Antworte NUR mit JSON-Array nach exakt diesem Schema:
-[{{"type": "price_error", "title": "...", "shop": "...", "category": "Tech|Fashion|Home|Food|Beauty|Sport|Sonstiges", "description": "1-2 Sätze", "why_it_works": "1 Satz Fehlerursache", "original_price": 199.99, "glitched_price": 19.99, "currency": "EUR", "coupon_code": "CODE oder null", "url": null, "expires_in_minutes": 90}}]
-Kein Text vor oder nach dem JSON."""
-
 SCORE_SYSTEM = (
     "Du bist das Risiko-Scoring-Modul von GlitchRadar.io. Du bewertest Glitch-Funde "
     "realistisch und vorsichtig. Du antwortest AUSSCHLIESSLICH mit validem JSON."
@@ -279,15 +268,6 @@ Gib je Eintrag an:
 Antworte NUR mit JSON-Array, für alle {n} Einträge.
 FUND-LISTE:
 {items}"""
-
-
-async def generate_glitches(n: int) -> list:
-    chat = (
-        LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"scout-{uuid.uuid4()}", system_message=SCOUT_SYSTEM)
-        .with_model("openai", SCOUT_MODEL)
-    )
-    raw = await asyncio.wait_for(chat.send_message(UserMessage(text=SCAN_PROMPT.format(n=n))), timeout=150)
-    return _extract_json_array(_as_text(raw))
 
 
 async def score_items(items: list) -> List[dict]:
@@ -325,108 +305,17 @@ ANALYST_SYSTEM = (
     "Du antwortest AUSSCHLIESSLICH mit validem JSON."
 )
 
-ENRICH_PROMPT = """Analysiere diesen Glitch und erstelle den Ausführungsplan für den Radar-Operator.
-GLITCH:
+ENRICH_PROMPT = """Analysiere diesen ECHTEN, online gefundenen Deal (aus einem öffentlichen Deal-Feed) und erstelle den Ausführungsplan.
+Erfinde KEINE Fakten, Codes oder Preise, die nicht im Fund stehen. Wenn etwas unklar ist, sag, dass man es im Original-Beitrag prüfen soll.
+FUND:
 {payload}
 
 Erstelle:
-- "steps": 5-7 konkrete Ausführungsschritte auf Deutsch (kurz, imperativ, shop-bezogen; z.B. Produkt in den Warenkorb, Code eingeben, schnelle Kasse wählen).
+- "steps": 4-6 konkrete Schritte auf Deutsch (kurz, imperativ; z.B. Original-Beitrag öffnen, Preis im Shop prüfen, Code im Warenkorb eingeben).
 - "tips": 2-4 kurze Profi-Tipps (z.B. Screenshot vom Preis machen, Käuferschutz nutzen, nicht mehr bestellen als gebraucht).
-- "risk_analysis": 2-3 Sätze Risiko-Bewertung (Stornorisiko, Limits; der Shop kann den Fehler jederzeit stornieren).
-- "time_window_note": 1 Satz zum Zeitfenster.
+- "risk_analysis": 2-3 Sätze Risiko-Bewertung (Stornorisiko bei Preisfehlern, Limits, Ablauf).
+- "time_window_note": 1 Satz, wie lange solche Deals erfahrungsgemäß halten.
 Antworte NUR mit JSON: {{"steps": ["..."], "tips": ["..."], "risk_analysis": "...", "time_window_note": "..."}}"""
-
-
-# ---------------------------------------------------------------------------
-# Seed data (nur falls die Datenbank leer ist)
-# ---------------------------------------------------------------------------
-
-SEED_GLITCHES = [
-    {"type": "price_error", "title": "Philips Airfryer XXL: 199,99 € → 19,99 €", "shop": "MediaMarkt", "category": "Tech",
-     "description": "Kassensystem rundet den Marketplace-Preis auf die falsche Dezimalstelle. Der Warenkorb übernimmt 19,99 €.",
-     "why_it_works": "Dezimalfehler in der Preis-Feed-Synchronisierung des Marketplace.",
-     "original_price": 199.99, "glitched_price": 19.99, "coupon_code": None, "risk_level": "medium",
-     "success_rate": 76, "risk_note": "Hohe Stornoquote wahrscheinlich, schnell handeln.",
-     "expires_in_minutes": 95, "minutes_ago": 12},
-    {"type": "coupon", "title": "GLITCH40: 40 % auf alles statt 15 %", "shop": "Zalando", "category": "Fashion",
-     "description": "Alter Campaign-Schlüssel wird von der Gutschein-Engine noch akzeptiert und verdoppelt+ den Rabatt.",
-     "why_it_works": "Kampagne wurde deaktiviert, aber nicht aus der Engine entfernt.",
-     "original_price": 300.0, "glitched_price": 180.0, "coupon_code": "GLITCH40", "risk_level": "low",
-     "success_rate": 84, "risk_note": "Gutschein wird meist anerkannt, ohne Storno.",
-     "expires_in_minutes": 210, "minutes_ago": 48},
-    {"type": "cashback", "title": "10-fach-Cashback-Glitch: Zelt effektiv 49,90 €", "shop": "Decathlon", "category": "Sport",
-     "description": "Cashback-Partner vergütet 10-fach statt einfach – der Effektivpreis fällt auf 49,90 €.",
-     "why_it_works": "Multiplikator der Cashback-Kampagne wurde vertauscht.",
-     "original_price": 89.90, "glitched_price": 49.90, "coupon_code": None, "risk_level": "low",
-     "success_rate": 71, "risk_note": "Cashback kann nachträglich korrigiert werden.",
-     "expires_in_minutes": 160, "minutes_ago": 95},
-    {"type": "shipping", "title": "Versandkosten-Bug: 1 €-Korb versandfrei + 5 € extra", "shop": "Otto", "category": "Home",
-     "description": "Mindestbestellwert-Prüfung greift nicht, zusätzlich akzeptiert der 5 €-Code unterhalb des Limits.",
-     "why_it_works": "Schwellenwert-Prüfung wurde beim Deploy übersprungen.",
-     "original_price": 29.99, "glitched_price": 24.99, "coupon_code": "OTTO5", "risk_level": "medium",
-     "success_rate": 69, "risk_note": "Teilstornos möglich, Warenkorb klein halten.",
-     "expires_in_minutes": 45, "minutes_ago": 30},
-    {"type": "price_error", "title": "LEGO Technic Ferrari: 459 € → 45,90 €", "shop": "Amazon Marketplace", "category": "Tech",
-     "description": "Preis-Dezimalfehler im Marketplace-Feed – mehrere Verkäufer ziehen automatisch nach.",
-     "why_it_works": "Neupreis wurde ohne Komma übernommen (4590 → 45,90).",
-     "original_price": 459.0, "glitched_price": 45.90, "coupon_code": None, "risk_level": "high",
-     "success_rate": 58, "risk_note": "Amazon storniert Marketplace-Fehler häufig.",
-     "expires_in_minutes": 75, "minutes_ago": 20},
-    {"type": "stack", "title": "Neukunden-Code stapelbar mit Sale: -60 %", "shop": "About You", "category": "Fashion",
-     "description": "Der 20 %-Neukundencode lässt sich auf reduzierte Artikel anwenden – Effektivrabatt bis 60 %.",
-     "why_it_works": "Sale-Ausschluss-Flag fehlt in der Code-Konfiguration.",
-     "original_price": 129.99, "glitched_price": 38.99, "coupon_code": "NEW60", "risk_level": "low",
-     "success_rate": 81, "risk_note": "Klassiker, wird meist geduldet.",
-     "expires_in_minutes": 320, "minutes_ago": 140},
-    {"type": "price_error", "title": "Kallax 4x4: 99 € → 9,90 € im Logistik-Portal", "shop": "IKEA", "category": "Home",
-     "description": "Das Logistik-Portal zeigt den Selbstabhol-Preis falsch an – Klick & Collect übernimmt 9,90 €.",
-     "why_it_works": "Portal-Berechnung nutzt Meterpreis statt Stückpreis.",
-     "original_price": 99.0, "glitched_price": 9.90, "coupon_code": None, "risk_level": "medium",
-     "success_rate": 64, "risk_note": "Abholung kann am Terminal abgelehnt werden.",
-     "expires_in_minutes": 55, "minutes_ago": 41},
-    {"type": "coupon", "title": "App-Glitch: 10 €-Gutschein ohne Mindestbestellwert", "shop": "Lieferando", "category": "Food",
-     "description": "Der 10 €-Gutschein springt auch unterhalb des Mindestbestellwerts an.",
-     "why_it_works": "App-Client prüft den Mindestbestellwert erst nach dem Coupon.",
-     "original_price": 25.0, "glitched_price": 15.0, "coupon_code": "GLITCH10", "risk_level": "low",
-     "success_rate": 88, "risk_note": "Lokal begrenzt, funktioniert in den meisten Städten.",
-     "expires_in_minutes": 120, "minutes_ago": 65},
-    {"type": "price_error", "title": "Air Max 270 Größen-Preisfehler: 160 € → 79 €", "shop": "Nike", "category": "Sport",
-     "description": "Der Sale-Feed setzt bei ausgewählten Größen einen halben Preis – Größenlogik-Fehler.",
-     "why_it_works": "Größen-Suffix wird beim Preis-Mapping ignoriert.",
-     "original_price": 160.0, "glitched_price": 79.0, "coupon_code": None, "risk_level": "medium",
-     "success_rate": 73, "risk_note": "Beliebte Größen sind zuerst weg.",
-     "expires_in_minutes": 400, "minutes_ago": 190},
-    {"type": "stack", "title": "Beauty-Coupon x20 stapelt auf Reduziertes + 5 €", "shop": "Rossmann", "category": "Beauty",
-     "description": "20 %-App-Coupon stapelt auf reduzierte Parfums, zusätzlich greift der 5 €-Coupon.",
-     "why_it_works": "Kategoriesperre des Coupons wurde auf der Sale-Seite nicht gesetzt.",
-     "original_price": 89.0, "glitched_price": 49.0, "coupon_code": "BEAUTY20", "risk_level": "low",
-     "success_rate": 79, "risk_note": "Online + Abholung im Laden möglich.",
-     "expires_in_minutes": 260, "minutes_ago": 110},
-]
-
-
-async def seed_if_empty() -> None:
-    if await db.glitches.count_documents({}) > 0:
-        return
-    now = _now()
-    docs = []
-    for s in SEED_GLITCHES:
-        docs.append(
-            GlitchDoc(
-                type=s["type"], title=s["title"], shop=s["shop"], category=s["category"],
-                description=s["description"], why_it_works=s["why_it_works"],
-                original_price=_f(s["original_price"]), glitched_price=_f(s["glitched_price"]),
-                discount_pct=_discount_pct(_f(s["original_price"]), _f(s["glitched_price"])),
-                coupon_code=s.get("coupon_code"), url=None,
-                risk_level=s.get("risk_level", "medium"), risk_note=s.get("risk_note", ""),
-                success_rate=_i(s.get("success_rate"), 70),
-                source_label="DEMO-SEED", scout_model="",
-                expires_at=now + timedelta(minutes=_i(s.get("expires_in_minutes"), 60)),
-                created_at=now - timedelta(minutes=_i(s.get("minutes_ago"), 30)),
-            ).to_mongo()
-        )
-    await db.glitches.insert_many(docs)
-    logger.info(f"Seeded {len(docs)} Demo-Glitches")
 
 
 # ---------------------------------------------------------------------------
@@ -441,18 +330,40 @@ async def health():
 
 @api_router.get("/")
 async def root():
-    return {"message": "GlitchRadar.io API", "scout": SCOUT_MODEL}
+    return {"message": "GlitchRadar.io API", "sources": [f[2] for f in FEEDS]}
 
 
 async def _expire_stale() -> None:
+    now = _now()
     await db.glitches.update_many(
-        {"status": "active", "expires_at": {"$lt": _now()}},
+        {"status": "active", "$or": [
+            {"expires_at": {"$ne": None, "$lt": now}},
+            {"published_at": {"$lt": now - timedelta(hours=STALE_HOURS)}},
+        ]},
         {"$set": {"status": "expired"}},
     )
 
 
+IMG_HOSTS = ("static.mydealz.de", "www.dealdoktor.de", "dealdoktor.de")
+
+
+@api_router.get("/img")
+async def image_proxy(u: str):
+    # Web preview only: mydealz images send Cross-Origin-Resource-Policy: same-origin.
+    from urllib.parse import urlparse
+    host = urlparse(u).hostname or ""
+    if urlparse(u).scheme != "https" or host not in IMG_HOSTS:
+        raise HTTPException(status_code=400, detail="Host nicht erlaubt")
+    async with httpx.AsyncClient(timeout=15, follow_redirects=True) as hc:
+        r = await hc.get(u, headers={"User-Agent": "Mozilla/5.0 (compatible; GlitchRadar/1.0)"})
+    if r.status_code != 200 or not r.headers.get("content-type", "").startswith("image/"):
+        raise HTTPException(status_code=404, detail="Bild nicht gefunden")
+    return Response(content=r.content, media_type=r.headers["content-type"],
+                    headers={"Cache-Control": "public, max-age=86400"})
+
+
 @api_router.get("/glitches")
-async def list_glitches(type: str = "all", sort: str = "ending", min_discount: int = 0):
+async def list_glitches(type: str = "all", sort: str = "new", min_discount: int = 0):
     await _expire_stale()
     query: dict = {"status": "active"}
     if type != "all":
@@ -460,12 +371,12 @@ async def list_glitches(type: str = "all", sort: str = "ending", min_discount: i
     if min_discount > 0:
         query["discount_pct"] = {"$gte": min_discount}
     order = {
-        "ending": [("expires_at", 1)],
-        "new": [("created_at", -1)],
-        "discount": [("discount_pct", -1)],
-        "risk": [("success_rate", -1)],
-    }.get(sort, [("expires_at", 1)])
-    docs = await db.glitches.find(query).sort(order).to_list(80)
+        "new": [("published_at", -1)],
+        "hot": [("temperature", -1), ("published_at", -1)],
+        "discount": [("discount_pct", -1), ("published_at", -1)],
+        "risk": [("success_rate", -1), ("published_at", -1)],
+    }.get(sort, [("published_at", -1)])
+    docs = await db.glitches.find(query).sort(order).to_list(100)
     out = []
     for d in docs:
         g = GlitchDoc.from_mongo(d)
@@ -474,12 +385,36 @@ async def list_glitches(type: str = "all", sort: str = "ending", min_discount: i
     return out
 
 
+@api_router.get("/codes")
+async def list_codes(shop: str = "all"):
+    await _expire_stale()
+    query: dict = {"status": "active", "coupon_code": {"$ne": None}}
+    if shop != "all":
+        query["shop"] = shop
+    docs = await db.glitches.find(query).sort([("published_at", -1)]).to_list(100)
+    return [GlitchDoc.from_mongo(d).out() for d in docs]
+
+
+class VoteIn(BaseModel):
+    up: bool
+
+
+@api_router.post("/glitches/{glitch_id}/vote")
+async def vote_glitch(glitch_id: str, body: VoteIn):
+    field = "votes_up" if body.up else "votes_down"
+    res = await db.glitches.update_one({"_id": _parse_oid(glitch_id)}, {"$inc": {field: 1}})
+    if res.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Glitch nicht gefunden")
+    g = GlitchDoc.from_mongo(await db.glitches.find_one({"_id": _parse_oid(glitch_id)}))
+    return g.out()
+
+
 @api_router.get("/glitches/{glitch_id}")
 async def get_glitch(glitch_id: str):
     g = GlitchDoc.from_mongo(await db.glitches.find_one({"_id": _parse_oid(glitch_id)}))
     if not g:
         raise HTTPException(status_code=404, detail="Glitch nicht gefunden")
-    if g.status == "active" and g.expires_at < _now():
+    if g.status == "active" and g.expires_at and g.expires_at < _now():
         g.status = "expired"
         await db.glitches.update_one({"_id": g.id}, {"$set": {"status": "expired"}})
     return g.out()
@@ -504,7 +439,8 @@ async def enrich_glitch(glitch_id: str):
         "type": g.type, "title": g.title, "shop": g.shop, "category": g.category,
         "description": g.description, "original_price": g.original_price,
         "glitched_price": g.glitched_price, "coupon_code": g.coupon_code,
-        "risk_level": g.risk_level, "expires_at": g.expires_at.isoformat(),
+        "risk_level": g.risk_level, "published_at": g.published_at.isoformat(),
+        "source": g.source_label, "source_url": g.source_url,
     }, ensure_ascii=False)
     try:
         chat = (
@@ -531,6 +467,76 @@ async def enrich_glitch(glitch_id: str):
 
 
 scan_lock = asyncio.Lock()
+STALE_HOURS = 72
+POLL_SECONDS = 600
+DEFAULT_RISK = {
+    "price_error": ("high", 50, "Preisfehler werden oft storniert – Bestellung kann abgelehnt werden."),
+    "coupon": ("low", 75, "Codes sind meist offiziell, können aber limitiert sein."),
+    "stack": ("medium", 60, "Kombinationen werden oft schnell gesperrt."),
+}
+
+
+async def ingest_feeds() -> dict:
+    scan = ScanDoc()
+    await db.scans.insert_one(scan.to_mongo())
+    items, ok_feeds = await fetch_all_feeds()
+    if ok_feeds == 0:
+        await db.scans.update_one(
+            {"_id": scan.id},
+            {"$set": {"status": "failed", "finished_at": _now(), "error": "Keine Quelle erreichbar"}},
+        )
+        raise HTTPException(status_code=502, detail="Keine Deal-Quelle erreichbar. Bitte später erneut versuchen.")
+
+    urls = [it["source_url"] for it in items]
+    existing = {d["source_url"] async for d in db.glitches.find({"source_url": {"$in": urls}}, {"source_url": 1})}
+    fresh = [it for it in items if it["source_url"] not in existing][:60]
+
+    scores: List[dict] = []
+    for i in range(0, len(fresh), 25):
+        batch = fresh[i:i + 25]
+        compact = [
+            {"title": b["title"], "shop": b["shop"], "type": b["type"], "price": b["glitched_price"],
+             "statt": b["original_price"], "rabatt_pct": b["discount_pct"], "code": b["coupon_code"]}
+            for b in batch
+        ]
+        llm = await score_items(compact)
+        for b, sc in zip(batch, llm):
+            if not sc.get("risk_note"):
+                risk, rate, note = DEFAULT_RISK.get(b["type"], ("medium", 65, "Deal im Original-Beitrag prüfen."))
+                sc = {"risk_level": risk, "success_rate": rate, "risk_note": note}
+            scores.append(sc)
+
+    docs = []
+    for it, sc in zip(fresh, scores):
+        docs.append(GlitchDoc(**it, risk_level=sc["risk_level"], success_rate=sc["success_rate"],
+                              risk_note=sc["risk_note"], scout_model=SCORER_MODEL).to_mongo())
+    if docs:
+        try:
+            await db.glitches.insert_many(docs, ordered=False)
+        except Exception as e:  # duplicate source_url races are harmless
+            logger.warning(f"Insert teilweise übersprungen: {e}")
+
+    total = round(sum((d["original_price"] - d["glitched_price"]) for d in docs
+                      if d.get("original_price") and d.get("glitched_price") is not None), 2)
+    await db.scans.update_one(
+        {"_id": scan.id},
+        {"$set": {"status": "done", "finished_at": _now(), "found_count": len(docs), "total_savings": total}},
+    )
+    scan_done = ScanDoc.from_mongo(await db.scans.find_one({"_id": scan.id}))
+    new_docs = await db.glitches.find({"source_url": {"$in": [d["source_url"] for d in docs]}}).to_list(len(docs) or 1)
+    return {"scan": scan_done.out(), "glitches": [GlitchDoc.from_mongo(d).out() for d in new_docs] if docs else []}
+
+
+async def _poll_loop() -> None:
+    while True:
+        try:
+            if not scan_lock.locked():
+                async with scan_lock:
+                    res = await ingest_feeds()
+                    logger.info(f"Hintergrund-Scan: {res['scan']['found_count']} neue Funde")
+        except Exception as e:
+            logger.warning(f"Hintergrund-Scan fehlgeschlagen: {e}")
+        await asyncio.sleep(POLL_SECONDS)
 
 
 @api_router.post("/scan")
@@ -538,73 +544,7 @@ async def run_scan():
     if scan_lock.locked():
         raise HTTPException(status_code=409, detail="SCOUT IST BEREITS AM ARBEITEN — EINEN MOMENT BITTE")
     async with scan_lock:
-        return await _run_scan_pipeline()
-
-
-async def _run_scan_pipeline():
-    scan = ScanDoc()
-    await db.scans.insert_one(scan.to_mongo())
-    try:
-        items = await generate_glitches(7)
-        if not items:
-            raise ValueError("Scout lieferte keine Funde")
-        scored = await score_items(items)
-        now = _now()
-        docs = []
-        for it, sc in zip(items, scored):
-            if not isinstance(it, dict):
-                continue
-            original = _f(it.get("original_price"))
-            glitched = _f(it.get("glitched_price"))
-            if glitched <= 0 or glitched >= original:
-                continue
-            minutes = max(15, min(480, _i(it.get("expires_in_minutes"), 60)))
-            docs.append(
-                GlitchDoc(
-                    type=str(it.get("type")) if it.get("type") in GLITCH_TYPES else "price_error",
-                    title=str(it.get("title", "Unbekannter Glitch"))[:120],
-                    shop=str(it.get("shop", "Unbekannt"))[:60],
-                    category=str(it.get("category", "Sonstiges"))[:40],
-                    description=str(it.get("description", ""))[:500],
-                    why_it_works=str(it.get("why_it_works", ""))[:300],
-                    original_price=original, glitched_price=glitched,
-                    discount_pct=_discount_pct(original, glitched),
-                    coupon_code=(str(it["coupon_code"]).strip()[:40] if it.get("coupon_code") else None),
-                    url=None,
-                    risk_level=sc["risk_level"], risk_note=sc["risk_note"],
-                    success_rate=sc["success_rate"],
-                    source_label="KI-SCOUT", scout_model=SCOUT_MODEL,
-                    expires_at=now + timedelta(minutes=minutes),
-                    created_at=now,
-                ).to_mongo()
-            )
-        if not docs:
-            raise ValueError("Keine verwertbaren Funde")
-        await db.glitches.insert_many(docs)
-        total = round(sum(d["original_price"] - d["glitched_price"] for d in docs), 2)
-        await db.scans.update_one(
-            {"_id": scan.id},
-            {"$set": {"status": "done", "finished_at": _now(), "found_count": len(docs), "total_savings": total}},
-        )
-    except HTTPException:
-        await db.scans.update_one(
-            {"_id": scan.id},
-            {"$set": {"status": "failed", "finished_at": _now(), "error": "aborted"}},
-        )
-        raise
-    except Exception as e:
-        logger.error(f"Scan fehlgeschlagen: {e}")
-        await db.scans.update_one(
-            {"_id": scan.id},
-            {"$set": {"status": "failed", "finished_at": _now(), "error": str(e)[:300]}},
-        )
-        raise HTTPException(status_code=502, detail="Scout-Auftrag fehlgeschlagen. Bitte erneut versuchen.")
-    fresh = await db.glitches.find({"status": "active"}).sort([("created_at", -1)]).to_list(len(docs))
-    scan_done = ScanDoc.from_mongo(await db.scans.find_one({"_id": scan.id}))
-    return {
-        "scan": scan_done.out() if scan_done else None,
-        "glitches": [GlitchDoc.from_mongo(d).out() for d in fresh],
-    }
+        return await ingest_feeds()
 
 
 @api_router.get("/scans/recent")
@@ -625,16 +565,20 @@ async def stats():
     expired_count = await db.glitches.count_documents({"status": "expired"})
     savings, avg = 0.0, 0
     agg = await db.glitches.aggregate([
-        {"$match": {"status": "active"}},
+        {"$match": {"status": "active", "original_price": {"$ne": None}, "glitched_price": {"$ne": None}}},
         {"$group": {
             "_id": None,
             "savings": {"$sum": {"$subtract": ["$original_price", "$glitched_price"]}},
-            "avg": {"$avg": "$discount_pct"},
         }},
+    ]).to_list(1)
+    avg_rows = await db.glitches.aggregate([
+        {"$match": {"status": "active", "discount_pct": {"$gt": 0}}},
+        {"$group": {"_id": None, "avg": {"$avg": "$discount_pct"}}},
     ]).to_list(1)
     if agg:
         savings = round(_f(agg[0].get("savings")), 2)
-        avg = round(_f(agg[0].get("avg")))
+    if avg_rows:
+        avg = round(_f(avg_rows[0].get("avg")))
     by_type_rows = await db.glitches.aggregate([
         {"$match": {"status": "active"}},
         {"$group": {"_id": "$type", "n": {"$sum": 1}}},
@@ -665,10 +609,16 @@ app.add_middleware(
 
 @app.on_event("startup")
 async def startup():
-    try:
-        await seed_if_empty()
-    except Exception as e:
-        logger.error(f"Seed fehlgeschlagen: {e}")
+    # Remove every AI-simulated or demo find — only real online finds stay.
+    removed = await db.glitches.delete_many({"$or": [
+        {"source_label": {"$in": ["KI-SCOUT", "DEMO-SEED"]}},
+        {"source_url": {"$exists": False}},
+    ]})
+    if removed.deleted_count:
+        logger.info(f"{removed.deleted_count} simulierte Funde entfernt")
+    await db.glitches.create_index("source_url", unique=True)
+    await db.glitches.create_index([("status", 1), ("published_at", -1)])
+    asyncio.create_task(_poll_loop())
 
 
 @app.on_event("shutdown")

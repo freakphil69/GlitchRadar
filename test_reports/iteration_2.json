@@ -1,0 +1,36 @@
+{
+  "summary": "GlitchRadar iteration_2 (real-RSS version) FULL PASS. Backend: 22/22 pytest cases PASS covering root w/ sources list, /glitches with real source_url (mydealz.de/dealdoktor.de), source_label, published_at and no KI/DEMO entries, type+sort+min_discount filters, /codes returns only entries with coupon_code, vote up/down (increments, 404, 400), /img proxy (200 for static.mydealz.de, 400 for other hosts), get-by-id 404/400, stats, scans/recent, report-dead, manual scan + dedupe (second scan found_count<=5) + concurrency 409 guard, and one Claude enrich call returning German instructions/tips/risk_analysis. Frontend (Expo web, 390x844): all four tabs navigate; 28 real-feed cards render with image, temperature °, 'QUELLE · MYDEALZ · HOT', age-pill 'VOR X MIN', and 'TREFFERQUOTE %'; stash button on card does NOT navigate (stays on tabs route). Chip rows complete: type chips chip-deal/price_error/coupon/cashback/shipping/stack and sort chips chip-new/hot/discount/risk. Ticker SCAN opens /scout with scout-start-button + scout-quota + scout-back-button. Detail page: 'ONLINE ENTDECKT' + TREFFERQUOTE, SCHRITTE/RISIKO/DETAILS chips, DETAILS tab reveals AUS DEM ORIGINAL-BEITRAG + detail-source-link (href to mydealz), detail-shop-button present, detail-cta-button text correct ('ORIGINAL-BEITRAG ÖFFNEN'), ad label hidden when affiliate_url==url. Codes tab: 2 code cards, code-copy-{id} triggers toast. Stash tab: share button rendered, no spurious '+0,00 €' for null-priced finds. Terminal: all three terminal-link-pro/scout/legal present; disclaimer mentions mydealz AND dealdoktor. PRO page: GLITCHRADAR PRO header, 4 perks, pro-identity-banner shown (expected since no auth), two RevenueCat Test Store packages (MONATLICH $9.99, JÄHRLICH $79.99), pro-restore-button, pro-close-button, 'simuliert' note. Legal page: contains Philipp Köhler, Kleiner Diebsteig 25, 18439 Stralsund, philippkohler940@gmail.com, WERBEHINWEIS (AFFILIATE), QUELLEN & HAFTUNG mentioning mydealz/dealdoktor, DATENSCHUTZ. Deprecated packages detected: NONE (feeds + fetched RSS use httpx, no expo-av/expo-barcode-scanner/expo-background-fetch references found). Minor: react-native-web props.pointerEvents deprecation warning persists (library-side, non-blocking).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "react-native-web pointerEvents", "issue": "Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents' — library-level (reanimated / tabs), non-blocking."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_glitchradar_api.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "No functional issues. Optional: investigate pointerEvents deprecation source (library bump) when convenient."
+  ],
+  "critical_code_review_comments": [
+    "server.py (~627 lines) remains manageable; LLM scoring + enrichment, feeds ingest, and HTTP routes are cleanly separated via feeds.py.",
+    "Startup wipe correctly removes any KI-SCOUT / DEMO-SEED legacy docs and any doc without source_url, matching the 'only real finds' requirement.",
+    "feeds.py uses httpx with timeout + User-Agent; dedupe via unique index on source_url and in-memory 'seen' set; parsing is defensive (try/except per item).",
+    "Scan concurrency guard uses asyncio.Lock → 409. Background poll runs every 10 min and shares the same lock — verified in test by waiting out the poller before racing a manual pair.",
+    "Image proxy correctly enforces https + allow-list hosts (static.mydealz.de / dealdoktor.de) and 400s all other hosts.",
+    "Pydantic GlitchDoc enforces tz-aware datetimes via field validators (no naïve datetime comparison regressions)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_glitchradar_api.py (rewritten for real-RSS feature set: /codes, /img proxy, vote, source_url assertions, dedupe check, poll-aware 409 race)"
+  ],
+  "success_rate": {"backend": "100% (22/22)", "frontend": "100% critical flows"},
+  "seed_data_creation": "None. Live mydealz/DealDoktor RSS data (51 active finds at test time).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Public URL from frontend/.env: https://error-scout-20.preview.emergentagent.com. Review request mentioned a different hostname — both resolve to the same backend. Regression suite /app/backend/tests/test_glitchradar_api.py runs in ~15s (xdist); honours review-stated budget of max 2 manual scans + 1 enrich call per run. Live feed counts/prices vary; tests use flexible assertions (type/sort/min_discount/host) rather than fixed values. PRO buy buttons are rendered WITH prices but main agent explicitly stated they should be visually disabled while identity banner is up — not verified via DOM 'disabled' attribute in this run; worth a quick regression if that behaviour changes.",
+  "rca_of_issue": "N/A — no new bugs found. Fixed earlier flake: concurrent-409 test was racing against the 10-min background poll; new test now waits up to 60s for the poll's lock to release before firing a tight thread race (0.05s offset) that reliably hits the 409 branch."
+}

@@ -18,6 +18,25 @@ export function useGlitches(filters: GlitchFilters) {
   });
 }
 
+export function useCodes(shop: string) {
+  return useQuery({
+    queryKey: ["codes", shop],
+    queryFn: () => apiGet<Glitch[]>(`/codes?shop=${encodeURIComponent(shop)}`),
+    refetchInterval: 60_000,
+  });
+}
+
+export function useVote() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, up }: { id: string; up: boolean }) => apiPost<Glitch>(`/glitches/${id}/vote`, { up }),
+    onSuccess: (g) => {
+      qc.setQueryData(["glitch", g.id], g);
+      qc.invalidateQueries({ queryKey: ["codes"] });
+    },
+  });
+}
+
 export function useGlitch(id: string) {
   return useQuery({
     queryKey: ["glitch", id],

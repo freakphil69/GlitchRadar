@@ -4,35 +4,32 @@
 "Ich möchte dass du mir eine app baust die glitches im Internet findet super schnell bevor sie wieder nicht mehr funktionieren um natürlich schnell an Geld zu bekommen"
 
 ## User Choices
-- Price errors + coupon glitches combined (plus cashback, shipping, stackable)
-- AI scout only (no community)
+- Price errors + coupon glitches (plus cashback, shipping, stackable, deals)
 - Dark radar/trading-terminal design, German UI
-- Models: GPT 5.6 Terra (scout), Gemini 3 Flash (risk scoring), Claude Sonnet 5.5 (step plans), via the Emergent universal key
-- User wants the 6-month plan (affiliate → PRO subscription → ads/sponsored)
+- User requirement (latest): NO AI-generated finds; only real finds shown with where/when they were found online
+- PRO subscription via RevenueCat (connected), promo code vault, legal pages
+- Imprint: Philipp Köhler, Kleiner Diebsteig 25, 18439 Stralsund, philippkohler940@gmail.com
 
 ## Architecture
-- Backend: FastAPI + MongoDB (`/app/backend/server.py`), PyObjectId/BaseDocument models, tz-aware datetimes, scan lock (409 on parallel scans)
-- Endpoints: GET /api/glitches, GET /api/glitches/{id}, POST /api/glitches/{id}/enrich, POST /api/glitches/{id}/report-dead, POST /api/scan, GET /api/scans/recent, GET /api/stats
-- Affiliate: SHOP_LINKS mapping + Awin deeplink once AWIN_PUBLISHER_ID is set in .env
-- Frontend: Expo Router, tabs RADAR/SCOUT/STASH/TERMINAL (NativeTabs on iOS 26+), modal /glitch/[id]; stash + settings stored locally
+- Backend FastAPI + MongoDB: `server.py`, `feeds.py` (RSS: mydealz Preisfehler-Gruppe, Gutscheine, Hot; DealDoktor)
+- Background poll every 10 min + manual POST /api/scan (lock → 409), dedupe by unique source_url, finds older than 72h expire
+- AI only evaluates real finds: Gemini 3 Flash (risk/success rate), Claude Sonnet 5.5 (step plan, no invented facts)
+- Endpoints: /api/glitches, /api/glitches/{id}, /enrich, /report-dead, /vote, /api/codes, /api/scan, /api/scans/recent, /api/stats, /api/img (web image proxy, whitelisted hosts)
+- Frontend Expo Router: tabs RADAR / CODES / STASH / TERMINAL; stack: /scout, /pro (modal), /legal, /glitch/[id] (modal)
+- RevenueCat: SDK init at module scope in _layout, SubscriptionProvider, entitlement "pro"; see /app/memory/revenuecat.md
 
-## Implemented (2026-10-19)
-- Radar feed with countdowns, filter/sort chips, ticker
-- AI scout scan with radar animation + terminal log; auto-scan on app start
-- Detail screen: AI step plan, risk, copy code, shop/affiliate link (falls back to web search)
-- Stash: watch/claimed ledger, savings counter, share button ("X € gespart")
-- Terminal: auto-scan, interval, minimum discount, model info, disclaimer
-- Logo/app icon (radar + glitch blip), adaptive icon, splash, favicon (`scripts/render_logo.py`)
-- Marketing playbook: /app/memory/MARKETING_PLAYBOOK.md
-- Tests: iteration_1 all passed (backend 14/14)
+## Implemented
+- 2026-10-19: MVP (radar, scout, stash, terminal), affiliate links, share savings, logo/icons
+- 2026-10-22: real RSS finds (AI simulations removed), source + age display, images, temperature, code vault with voting, PRO paywall (3 free manual scans/day), imprint/privacy/ad label, tests iteration_2 passed (22/22 backend)
 
 ## Known Limits
-- AI finds are simulations (often fictional shops) → no real live price errors yet
-- Affiliate only earns money with a real Awin ID + real shops
+- Purchases blocked until login exists (RevenueCat requires a stable user ID)
+- Real store purchases need App Store/Play products + credentials (RevenueCat FAQ in the payments panel)
+- Affiliate commissions need AWIN_PUBLISHER_ID
+- Deal content comes from third-party feeds → short excerpt + link to the original; clarify permission/partnership with mydealz before a large launch
 
 ## Backlog
-- P0: real data sources (price feeds/deal RSS such as mydealz feed) instead of simulated finds
-- P0: Awin publisher ID + affiliate disclosure ("Anzeige")
-- P1: PRO subscription (4.99 €/month) via Stripe/RevenueCat
-- P1: promo code vault tab
-- P2: imprint/privacy screens, referral, hall of fame, sponsored signals
+- P0: login (JWT or Google) → enables PRO purchases
+- P1: push alerts for new price errors (needs a build)
+- P1: more sources (e.g. Preisjäger, retailer price feeds)
+- P2: hall of fame, referral, sponsored signals

@@ -1,5 +1,14 @@
+import { Platform } from "react-native";
+
 function pad(n: number): string {
   return String(n).padStart(2, "0");
+}
+
+// Browsers block mydealz images (CORP same-origin); native apps load them directly.
+export function imgSrc(url: string): string {
+  return Platform.OS === "web"
+    ? `${process.env.EXPO_PUBLIC_BACKEND_URL}/api/img?u=${encodeURIComponent(url)}`
+    : url;
 }
 
 export function fmtPrice(v: number): string {

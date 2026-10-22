@@ -20,11 +20,11 @@ export function useToast() {
   return useContext(ToastContext);
 }
 
-const ICONS: Record<ToastKind, string> = {
+const ICONS = {
   success: "check-circle",
   error: "alert-circle",
   info: "information",
-};
+} as const;
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toast, setToast] = useState<ToastData | null>(null);

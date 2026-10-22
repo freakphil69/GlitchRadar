@@ -7,12 +7,20 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 
 import { ErrorBoundary } from "@/src/components/error-boundary";
 import { ToastProvider } from "@/src/components/Toast";
+import { initializeRevenueCat, SubscriptionProvider } from "@/src/lib/revenuecat";
 import { queryClient } from "@/src/query-client";
 import { useTheme } from "@/src/theme";
 
 // Disable logbox errors etc so that users can see the app
 // and agent works as expected.
 LogBox.ignoreAllLogs(true)
+
+// RevenueCat SDK: configured exactly once at module scope, before any component mounts.
+try {
+  initializeRevenueCat();
+} catch (err) {
+  console.warn("RevenueCat unavailable:", err);
+}
 
 export default function RootLayout() {
   const { colors } = useTheme();
@@ -23,15 +31,20 @@ export default function RootLayout() {
     <GestureHandlerRootView style={styles.root}>
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
-          <KeyboardProvider>
-            <StatusBar style="light" />
-            <ToastProvider>
-              <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surface } }}>
-                <Stack.Screen name="(tabs)" />
-                <Stack.Screen name="glitch/[id]" options={{ presentation: "modal" }} />
-              </Stack>
-            </ToastProvider>
-          </KeyboardProvider>
+          <SubscriptionProvider>
+            <KeyboardProvider>
+              <StatusBar style="light" />
+              <ToastProvider>
+                <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surface } }}>
+                  <Stack.Screen name="(tabs)" />
+                  <Stack.Screen name="glitch/[id]" options={{ presentation: "modal" }} />
+                  <Stack.Screen name="scout" />
+                  <Stack.Screen name="pro" options={{ presentation: "modal" }} />
+                  <Stack.Screen name="legal" />
+                </Stack>
+              </ToastProvider>
+            </KeyboardProvider>
+          </SubscriptionProvider>
         </QueryClientProvider>
       </ErrorBoundary>
     </GestureHandlerRootView>

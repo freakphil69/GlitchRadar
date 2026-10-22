@@ -15,14 +15,15 @@ const TYPE_CHIPS = [
   { key: "all", label: "ALLE" },
   { key: "price_error", label: "PREISFEHLER" },
   { key: "coupon", label: "GUTSCHEINE" },
+  { key: "stack", label: "STAPEL" },
   { key: "cashback", label: "CASHBACK" },
   { key: "shipping", label: "VERSAND" },
-  { key: "stack", label: "STAPEL" },
+  { key: "deal", label: "DEALS" },
 ];
 
 const SORT_CHIPS = [
-  { key: "ending", label: "LÄUFT BALD" },
   { key: "new", label: "NEUESTE" },
+  { key: "hot", label: "HOT °" },
   { key: "discount", label: "MAX RABATT" },
   { key: "risk", label: "TREFFERQUOTE" },
 ];
@@ -35,7 +36,7 @@ export default function RadarScreen() {
   const settings = useSettings();
 
   const [type, setType] = useState("all");
-  const [sort, setSort] = useState("ending");
+  const [sort, setSort] = useState("new");
 
   const filters = useMemo(
     () => ({ type, sort, minDiscount: settings.minDiscount }),
@@ -53,6 +54,7 @@ export default function RadarScreen() {
           activeCount={stats.data?.active_count}
           savings={stats.data?.total_savings_potential}
           lastScanAt={stats.data?.last_scan?.finished_at ?? stats.data?.last_scan?.started_at ?? null}
+          onScan={() => router.push("/scout")}
         />
         <ChipRow options={TYPE_CHIPS} value={type} onChange={setType} />
         <ChipRow options={SORT_CHIPS} value={sort} onChange={setSort} />
@@ -83,7 +85,7 @@ export default function RadarScreen() {
               <MaterialCommunityIcons name="wifi-off" size={40} color={colors.error} />
               <Text style={styles.stateTitle}>UPLINK VERLOREN</Text>
               <Text style={styles.stateText}>{(list.error as Error)?.message ?? "Verbindungsproblem."}</Text>
-              <Pressable testID="error-retry-button" onPress={list.refetch} style={styles.stateButton}>
+              <Pressable testID="error-retry-button" onPress={() => list.refetch()} style={styles.stateButton}>
                 <Text style={styles.stateButtonText}>ERNEUT VERSUCHEN</Text>
               </Pressable>
             </View>
