@@ -133,6 +133,36 @@ def _clean_step(s: str) -> str:
     return re.sub(r"^\s*\d+[.)]\s*", "", str(s)).strip()
 
 
+# Affiliate shop mapping (Awin/Belboon style deep-link wrapper).
+# Replace the AWIN_ID placeholder with your real publisher id in production;
+# fallback is the plain shop homepage so the CTA never shows a dead button.
+AWIN_ID = os.environ.get("AWIN_PUBLISHER_ID", "DEMO")
+SHOP_LINKS = {
+    "zalando": ("https://www.zalando.de/", 11420),
+    "mediamarkt": ("https://www.mediamarkt.de/", 11832),
+    "otto": ("https://www.otto.de/", 10358),
+    "decathlon": ("https://www.decathlon.de/", 11112),
+    "amazon": ("https://www.amazon.de/", None),
+    "amazon marketplace": ("https://www.amazon.de/", None),
+    "about you": ("https://www.aboutyou.de/", 15104),
+    "ikea": ("https://www.ikea.com/de/de/", None),
+    "lieferando": ("https://www.lieferando.de/", None),
+    "nike": ("https://www.nike.com/de/", None),
+    "rossmann": ("https://www.rossmann.de/", None),
+}
+
+
+def build_affiliate_link(shop: str) -> tuple[Optional[str], Optional[str]]:
+    key = (shop or "").strip().lower()
+    base_url, awin_mid = SHOP_LINKS.get(key, (None, None))
+    if not base_url:
+        return None, None
+    if awin_mid and AWIN_ID != "DEMO":
+        aff = f"https://www.awin1.com/cread.php?awinmid={awin_mid}&awinaffid={AWIN_ID}&ued={base_url}"
+        return base_url, aff
+    return base_url, base_url
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -165,6 +195,7 @@ class GlitchDoc(BaseDocument):
     discount_pct: int = 0
     coupon_code: Optional[str] = None
     url: Optional[str] = None
+    affiliate_url: Optional[str] = None
     risk_level: str = "medium"
     risk_note: str = ""
     risk_analysis: Optional[str] = None
@@ -183,6 +214,14 @@ class GlitchDoc(BaseDocument):
     @classmethod
     def _tz_glitch(cls, v: datetime) -> datetime:
         return _ensure_tz(v)
+
+    def out(self) -> dict:
+        d = super().out()
+        if not d.get("url") or not d.get("affiliate_url"):
+            base, aff = build_affiliate_link(self.shop)
+            d["url"] = d.get("url") or base
+            d["affiliate_url"] = d.get("affiliate_url") or aff
+        return d
 
 
 class ScanDoc(BaseDocument):

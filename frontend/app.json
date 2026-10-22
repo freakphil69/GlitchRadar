@@ -14,7 +14,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#000000"
+        "backgroundColor": "#0D1117"
       },
       "package": "com.emergent.errorscout.kircz0"
     },
@@ -31,7 +31,7 @@
           "image": "./assets/images/splash-image.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#000000"
+          "backgroundColor": "#0D1117"
         }
       ],
       ["expo-font", { "fonts": ["./assets/fonts/BarlowCondensed-Regular.ttf", "./assets/fonts/BarlowCondensed-SemiBold.ttf", "./assets/fonts/BarlowCondensed-Bold.ttf", "./assets/fonts/Satoshi-Regular.ttf", "./assets/fonts/Satoshi-Medium.ttf", "./assets/fonts/Satoshi-Bold.ttf", "./assets/fonts/JetBrainsMono-Medium.ttf"] }],

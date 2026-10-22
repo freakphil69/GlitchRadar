@@ -15,6 +15,7 @@ export interface Glitch {
   discount_pct: number;
   coupon_code: string | null;
   url: string | null;
+  affiliate_url: string | null;
   risk_level: RiskLevel;
   risk_note: string;
   risk_analysis: string | null;

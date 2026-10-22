@@ -66,8 +66,12 @@ export default function GlitchDetailScreen() {
       await Clipboard.setStringAsync(glitch.coupon_code);
       toast(`Code ${glitch.coupon_code} kopiert`, "success");
     }
-    if (glitch.url) {
-      WebBrowser.openBrowserAsync(glitch.url);
+    const link =
+      glitch.affiliate_url ??
+      glitch.url ??
+      `https://www.google.com/search?q=${encodeURIComponent(`${glitch.shop} ${glitch.title}`)}`;
+    if (link) {
+      WebBrowser.openBrowserAsync(link);
     } else if (!glitch.coupon_code) {
       toast("Kein Shop-Link vorhanden", "info");
     }
@@ -304,10 +308,10 @@ export default function GlitchDetailScreen() {
         <Pressable testID="detail-cta-button" onPress={onCta} style={styles.ctaButton}>
           <Text style={styles.ctaText}>
             {glitch.coupon_code
-              ? glitch.url
+              ? (glitch.affiliate_url ?? glitch.url)
                 ? "CODE KOPIEREN & SHOP ÖFFNEN"
                 : "CODE KOPIEREN"
-              : glitch.url
+              : (glitch.affiliate_url ?? glitch.url)
                 ? "SHOP ÖFFNEN"
                 : "ZUM SHOP SUCHEN"}
           </Text>

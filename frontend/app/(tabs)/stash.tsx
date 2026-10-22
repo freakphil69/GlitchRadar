@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FlatList, Pressable, Text, View } from "react-native";
+import { FlatList, Pressable, Share, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import MaterialCommunityIcons from "@react-native-vector-icons/material-design-icons";
@@ -37,6 +37,19 @@ export default function StashScreen() {
     toast(claimedNow ? "Aus gesichert zurückgesetzt" : "Als gesichert markiert — eingepreist!", "success");
   };
 
+  const onShare = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const total = realized > 0 ? realized : potential;
+    const verb = realized > 0 ? "schon" : "gerade im Visier:";
+    try {
+      await Share.share({
+        message: `GLITCH ALARM: Ich habe mit GlitchRadar ${verb} ${fmtMoney(total)} an Preisfehlern & Gutschein-Glitches abgegriffen. Hol dir die App und sei schneller als der Patch!`,
+      });
+    } catch {
+      toast("Teilen fehlgeschlagen", "error");
+    }
+  };
+
   const onRemove = (id: string) => {
     actions.remove.mutate(id);
     toast("Aus dem Stash entfernt", "info");
@@ -65,6 +78,18 @@ export default function StashScreen() {
             <Text style={styles.summarySub}>{claimed.length} gesichert</Text>
           </View>
         </View>
+
+        <Pressable
+          testID="stash-share-button"
+          onPress={onShare}
+          disabled={items.length === 0}
+          style={[styles.shareBtn, items.length === 0 && { opacity: 0.4 }]}
+        >
+          <MaterialCommunityIcons name="share-variant" size={18} color={colors.onBrandPrimary} />
+          <Text style={styles.shareText}>
+            {realized > 0 ? `${fmtMoney(realized)} GESPART — TEILEN` : "MEINE FUNDE TEILEN"}
+          </Text>
+        </Pressable>
 
         <ChipRow
           options={[
@@ -199,6 +224,23 @@ const useStyles = makeStyles((c) => ({
     fontFamily: fonts.textRegular,
     fontSize: 11,
     color: c.onSurfaceTertiary,
+  },
+  shareBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    height: 48,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.md,
+    borderRadius: radius.sm,
+    backgroundColor: c.brandPrimary,
+  },
+  shareText: {
+    fontFamily: fonts.mono,
+    fontSize: 13,
+    letterSpacing: 1.2,
+    color: c.onBrandPrimary,
   },
   listContent: {
     padding: spacing.lg,

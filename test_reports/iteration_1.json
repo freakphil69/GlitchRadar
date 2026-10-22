@@ -1,0 +1,36 @@
+{
+  "summary": "GlitchRadar full-stack test. Backend: 14/14 pytest cases PASS covering list/filter/sort/min_discount, get-by-id (tz fix verified - no 500), 404/400, stats, scans/recent, report-dead, affiliate_url/url presence (known shops like Zalando/Otto/MediaMarkt/IKEA/Amazon/About You/Nike/Lieferando/Rossmann return homepage links, unknown return null), POST /api/scan + concurrent 409 (exactly one pair), and one enrich call returning German instructions/tips/risk_analysis. Frontend: all four tabs (RADAR/SCOUT/STASH/TERMINAL) navigate correctly, 8 seeded glitch cards render with ticker and two chip rows (type + sort), stash button on card uses stopPropagation and does NOT navigate to detail, Stash tab shows share button correctly disabled when empty / enabled after save, claim toggles 'EINGESTRICHEN' amount, remove works, Glitch detail opens with SCHRITTE/RISIKO/DETAILS chips, CTA testID detail-cta-button shows correct text 'CODE KOPIEREN' / 'CODE KOPIEREN & SHOP ÖFFNEN' / 'SHOP ÖFFNEN' / 'ZUM SHOP SUCHEN' per code+link combo, and TOT MELDEN (detail-report-dead) successfully navigates back to the radar list. Terminal shows Auto-Scan switch, 15/30/60 MIN interval chips, min discount chips (ALLE/50/70/80 %+), model stack and 'Stash leeren'. All three previously flagged bugs (tz 500 on detail, nested Pressable bubbling on stash card button, CTA fallback text) are verified fixed. Minor console warning: react-native-web deprecation 'props.pointerEvents is deprecated. Use style.pointerEvents' (library-side, not a bug).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "react-native-web pointerEvents", "issue": "Deprecation warning in console: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Likely coming from a dependency (reanimated / tabs); not blocking. Reference: console warning only."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_glitchradar_api.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "No functional issues found. Optional: investigate the pointerEvents deprecation warning source (library upgrade) when convenient."
+  ],
+  "critical_code_review_comments": [
+    "server.py is ~680 lines and still manageable, but if more endpoints are added consider splitting LLM scout pipeline, models, and routes into separate modules.",
+    "Enrichment endpoint rightfully short-circuits when already enriched (idempotent); scan uses asyncio.Lock to return 409 - both patterns correct.",
+    "GlitchDoc.out() correctly injects affiliate link fallbacks for known shops and leaves nulls for unknown ones."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_glitchradar_api.py (new - pytest regression suite)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "No new seed data created; relied on existing SEED_GLITCHES inserted on backend startup.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Public URL: https://error-scout-20.preview.emergentagent.com (from EXPO_PUBLIC_BACKEND_URL). Regression suite at /app/backend/tests/test_glitchradar_api.py runs in ~16s. The scan test uses a 2s delay to acquire asyncio.Lock before firing concurrent POST and asserts 409. Enrich test picks the first non-enriched glitch. Both LLM-costly tests run exactly once as instructed. Known shop list for affiliate assertions is defined inline in the test file.",
+  "rca_of_issue": "N/A - all three previously-reported bugs (tz-aware comparison in /glitches/{id}, Pressable event bubbling on stash button, CTA fallback text when no URL) are verified fixed."
+}
