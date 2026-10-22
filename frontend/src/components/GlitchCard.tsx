@@ -76,7 +76,10 @@ export function GlitchCard({ glitch, index = 0 }: { glitch: Glitch; index?: numb
           ) : null}
           <Pressable
             testID={`glitch-stash-button-${glitch.id}`}
-            onPress={onStash}
+            onPress={(e) => {
+              e.stopPropagation();
+              onStash();
+            }}
             style={[styles.stashBtn, stashed && styles.stashBtnActive]}
             hitSlop={8}
           >

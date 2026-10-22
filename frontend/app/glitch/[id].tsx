@@ -303,7 +303,13 @@ export default function GlitchDetailScreen() {
         </View>
         <Pressable testID="detail-cta-button" onPress={onCta} style={styles.ctaButton}>
           <Text style={styles.ctaText}>
-            {glitch.coupon_code ? "CODE KOPIEREN & SHOP ÖFFNEN" : "SHOP ÖFFNEN"}
+            {glitch.coupon_code
+              ? glitch.url
+                ? "CODE KOPIEREN & SHOP ÖFFNEN"
+                : "CODE KOPIEREN"
+              : glitch.url
+                ? "SHOP ÖFFNEN"
+                : "ZUM SHOP SUCHEN"}
           </Text>
         </Pressable>
       </View>
