@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { PurchasesPackage } from "react-native-purchases";
 
 import { useToast } from "@/src/components/Toast";
+import { useAuth } from "@/src/lib/auth";
 import { isTestStore, useSubscription } from "@/src/lib/revenuecat";
 import { FREE_SCANS_PER_DAY } from "@/src/lib/scanQuota";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -24,6 +25,7 @@ export default function ProScreen() {
   const styles = useStyles();
   const toast = useToast();
   const sub = useSubscription();
+  const auth = useAuth();
   const [confirm, setConfirm] = useState<PurchasesPackage | null>(null);
 
   const packages = sub.offerings?.current?.availablePackages ?? [];
@@ -96,27 +98,49 @@ export default function ProScreen() {
               </Text>
             ) : (
               <>
-                {!sub.identityReady ? (
-                  <View style={styles.banner} testID="pro-identity-banner">
+                {!auth.user ? (
+                  <View style={styles.banner} testID="pro-login-banner">
                     <MaterialCommunityIcons name="account-alert" size={18} color={colors.warning} />
+                    <View style={{ flex: 1, gap: spacing.sm }}>
+                      <Text style={styles.bannerText}>
+                        Melde dich an, damit dein Abo an dein Konto gebunden ist und nie verloren geht.
+                      </Text>
+                      <Pressable testID="pro-login-button" onPress={() => router.push("/login")} style={styles.restoreBtn}>
+                        <Text style={styles.restoreText}>ANMELDEN / REGISTRIEREN</Text>
+                      </Pressable>
+                    </View>
+                  </View>
+                ) : !sub.identityReady ? (
+                  <View style={styles.banner} testID="pro-identity-banner">
+                    <MaterialCommunityIcons name="account-sync" size={18} color={colors.warning} />
                     <Text style={styles.bannerText}>
-                      Für den Kauf brauchst du ein GlitchRadar-Konto, damit dein Abo nicht verloren geht. Der Login kommt im nächsten Update.
+                      {auth.identityError ? `Konto-Verknüpfung fehlgeschlagen: ${auth.identityError}` : "Verknüpfe Konto mit dem Store…"}
                     </Text>
                   </View>
                 ) : null}
-                {packages.map((pkg) => (
-                  <Pressable
-                    key={pkg.identifier}
-                    testID={`pro-buy-${pkg.identifier}`}
-                    disabled={!sub.identityReady || sub.isPurchasing}
-                    onPress={() => onBuy(pkg)}
-                    style={[styles.buyBtn, (!sub.identityReady || sub.isPurchasing) && { opacity: 0.45 }]}
-                  >
-                    <Text style={styles.buyText}>
-                      {pkg.packageType === "ANNUAL" ? "JÄHRLICH" : "MONATLICH"} · {pkg.product.priceString}
-                    </Text>
-                  </Pressable>
-                ))}
+                {packages.map((pkg) => {
+                  const intro = pkg.product.introPrice;
+                  const locked = !auth.user || !sub.identityReady || sub.isPurchasing;
+                  return (
+                    <Pressable
+                      key={pkg.identifier}
+                      testID={`pro-buy-${pkg.identifier}`}
+                      disabled={locked}
+                      onPress={() => onBuy(pkg)}
+                      style={[styles.buyBtn, locked && { opacity: 0.45 }]}
+                    >
+                      <Text style={styles.buyText}>
+                        {pkg.packageType === "ANNUAL" ? "JÄHRLICH" : "MONATLICH"} · {pkg.product.priceString}
+                      </Text>
+                      {intro ? (
+                        <Text style={styles.introText}>
+                          {intro.priceString} für die ersten {intro.cycles * intro.periodNumberOfUnits}{" "}
+                          {intro.periodUnit === "MONTH" ? "Monate" : intro.periodUnit === "WEEK" ? "Wochen" : "Zeiträume"}
+                        </Text>
+                      ) : null}
+                    </Pressable>
+                  );
+                })}
               </>
             )}
             <Pressable testID="pro-restore-button" onPress={onRestore} disabled={sub.isRestoring} style={styles.restoreBtn}>
@@ -206,6 +230,7 @@ const useStyles = makeStyles((c) => ({
     justifyContent: "center",
   },
   buyText: { fontFamily: fonts.mono, fontSize: 14, letterSpacing: 1.5, color: c.onBrandPrimary },
+  introText: { fontFamily: fonts.text, fontSize: 11, color: c.onBrandPrimary, opacity: 0.9, marginTop: 2 },
   restoreBtn: {
     height: 44,
     borderRadius: radius.sm,

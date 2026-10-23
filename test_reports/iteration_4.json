@@ -1,0 +1,30 @@
+{
+  "summary": "GlitchRadar iteration_4 (Google login UI + PRO/Free plan banner in Terminal) FULL PASS. BACKEND (focused auth re-run, 9/9 pytest cases PASS via /app/backend/tests/test_auth_stash_hof.py): /auth/register invalid email -> 422; short pw -> 422; register->login->/me->logout flow returns 201/200/200/200 w/ password_hash never leaked and /me after logout -> 401; duplicate email -> 409; /auth/me without Bearer -> 401; wrong password returns generic german 'E-Mail oder Passwort falsch' 401; brute-force lockout (throwaway account) saw 429 within 6 attempts; main account preserved. REQUESTED CHECK: POST /api/auth/session with invalid session_id 'definitely-not-a-real-session-id-xyz' returns HTTP 401 (not 500) with detail 'Google-Anmeldung fehlgeschlagen' — verified green. FRONTEND (390x844 mobile viewport, Expo web preview at https://error-scout-20.preview.emergentagent.com): Terminal (logged out) renders both terminal-account-card and new terminal-plan-banner at top; banner text is 'Free-Plan / Begrenzte Scans pro Tag – PRO schaltet alles frei / FREE' with FREE badge; terminal-login-button row visible ('Anmelden oder registrieren · Google oder E-Mail – für PRO und Stash-Sync'). Tapping login row navigates to /login where login-google-button renders a white pill with Google icon + text 'Weiter mit Google'; tapping it on web redirects browser to https://auth.emergentagent.com/oauth/?redirect=https%3A%2F%2Ferror-scout-20.preview.emergentagent.com%2F (encoded redirect correct; real Google login not completed as instructed — emergent auth itself redirected / -> /oauth/, no app-side code change). Email login with tester@glitchradar.app / GlitchTest2026! auto-closes /login, lands on home; Terminal then shows account card with name 'Tester', email 'tester@glitchradar.app · Stash wird synchronisiert' and ABMELDEN button, with the plan banner still rendering Free-Plan + FREE badge below it (user is logged in but not subscribed — expected). Tapping terminal-plan-banner opens /pro paywall as required. ABMELDEN logs out, toast 'Abgemeldet' shows, terminal-login-button returns and plan banner remains visible. REGRESSION: email register/login/logout flow (test_register_login_me_logout_flow) still green; brute-force lockout still green; invalid-session still green. React-native-web pointerEvents warning (library-level) persists but non-blocking. No red screen, no deprecated expo packages detected.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "react-native-web pointerEvents", "issue": "Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents' — library-level (reanimated / expo-router tabs), non-blocking."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_auth_stash_hof.py",
+    "/app/test_reports/pytest/pytest_auth_iter4.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "login.tsx: google() handler correctly skips setBusy(false) on web since window.location.href navigates away from the page; prevents a stuck disabled state before redirect. Error flow for native ('Google-Anmeldung abgebrochen') only shown on non-web, which matches the WebBrowser flow.",
+    "auth.tsx: loginGoogle() builds redirect from window.location.origin on web and Linking.createURL('') on native; applies exchange() exactly once via sentIds Set to make the session_id POST idempotent across hot-reloads and native deep-link hot callbacks.",
+    "auth.tsx: on mount, web branch strips session_id from both query and hash via URL + history.replaceState — avoids re-exchanging a token on refresh. Good.",
+    "terminal.tsx: terminal-plan-banner is a Pressable row with testID, uses isSubscribed from useSubscription(); copy correctly swaps 'PRO aktiv' + success-colored PRO badge vs 'Free-Plan' + muted FREE badge; also surfaces auth.identityError inline when RevenueCat identity link fails — defense in depth.",
+    "backend/auth.py /auth/session: Emergent session-data HTTP call is wrapped so any non-200 upstream becomes a clean HTTPException(401) — explains why invalid session_id returns 401 instead of 500 (fix landed in this iteration)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (9/9 auth-focused)", "frontend": "100% critical flows"},
+  "seed_data_creation": "None. Reused tester@glitchradar.app account. Brute-force test uses throwaway TEST_bf_* emails, main account not locked.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Public URL from frontend/.env (EXPO_PUBLIC_BACKEND_URL): https://error-scout-20.preview.emergentagent.com. Mobile viewport 390x844. Main account tester@glitchradar.app / GlitchTest2026! — see /app/memory/test_credentials.md. New testIDs in Terminal: terminal-account-card (wrapper), terminal-login-button (logged out row), terminal-logout-button (logged in), terminal-plan-banner (always visible, taps to /pro), terminal-identity-error (only if RevenueCat identity sync fails). Google login redirect on web: tapping login-google-button on web sets window.location.href = https://auth.emergentagent.com/?redirect=<origin>/ — emergent service then redirects to its /oauth/ path, so wait_for_url should match on 'auth.emergentagent.com' host, not an exact path. Do NOT complete a real Google login in automated tests."
+}

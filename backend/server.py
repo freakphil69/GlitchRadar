@@ -10,7 +10,7 @@ from typing import Annotated, Any, List, Optional
 
 from bson import ObjectId
 from dotenv import load_dotenv
-from fastapi import FastAPI, APIRouter, HTTPException, Response
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Response
 import httpx
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, field_validator
@@ -18,6 +18,9 @@ from starlette.middleware.cors import CORSMiddleware
 
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 
+from urllib.parse import quote
+
+from auth import ensure_auth_indexes, make_auth
 from feeds import FEEDS, fetch_all_feeds
 
 ROOT_DIR = Path(__file__).parent
@@ -136,34 +139,62 @@ def _clean_step(s: str) -> str:
     return re.sub(r"^\s*\d+[.)]\s*", "", str(s)).strip()
 
 
-# Affiliate shop mapping (Awin/Belboon style deep-link wrapper).
-# Replace the AWIN_ID placeholder with your real publisher id in production;
-# fallback is the plain shop homepage so the CTA never shows a dead button.
-AWIN_ID = os.environ.get("AWIN_PUBLISHER_ID", "DEMO")
-SHOP_LINKS = {
-    "zalando": ("https://www.zalando.de/", 11420),
-    "mediamarkt": ("https://www.mediamarkt.de/", 11832),
-    "otto": ("https://www.otto.de/", 10358),
-    "decathlon": ("https://www.decathlon.de/", 11112),
-    "amazon": ("https://www.amazon.de/", None),
-    "amazon marketplace": ("https://www.amazon.de/", None),
-    "about you": ("https://www.aboutyou.de/", 15104),
-    "ikea": ("https://www.ikea.com/de/de/", None),
-    "lieferando": ("https://www.lieferando.de/", None),
-    "nike": ("https://www.nike.com/de/", None),
-    "rossmann": ("https://www.rossmann.de/", None),
+# Affiliate links: only real, configured partner IDs ever produce an affiliate link.
+# AWIN_PUBLISHER_ID = your Awin publisher id; AWIN_ADVERTISER_IDS = "zalando=1234,otto=5678"
+# (advertiser ids from each program you were accepted into); AMAZON_PARTNER_TAG = "name-21".
+SHOP_HOMEPAGES = {
+    "zalando": "https://www.zalando.de/",
+    "mediamarkt": "https://www.mediamarkt.de/",
+    "saturn": "https://www.saturn.de/",
+    "otto": "https://www.otto.de/",
+    "decathlon": "https://www.decathlon.de/",
+    "amazon": "https://www.amazon.de/",
+    "amazon marketplace": "https://www.amazon.de/",
+    "about you": "https://www.aboutyou.de/",
+    "ikea": "https://www.ikea.com/de/de/",
+    "lieferando": "https://www.lieferando.de/",
+    "nike": "https://www.nike.com/de/",
+    "adidas": "https://www.adidas.de/",
+    "rossmann": "https://www.rossmann.de/",
+    "dm": "https://www.dm.de/",
+    "douglas": "https://www.douglas.de/",
+    "lidl": "https://www.lidl.de/",
+    "kaufland": "https://www.kaufland.de/",
+    "ebay": "https://www.ebay.de/",
+    "notebooksbilliger": "https://www.notebooksbilliger.de/",
+    "cyberport": "https://www.cyberport.de/",
+    "alternate": "https://www.alternate.de/",
+    "galaxus": "https://www.galaxus.de/",
+    "google store": "https://store.google.com/de/",
+    "apple": "https://www.apple.com/de/",
 }
+
+
+def _awin_advertisers() -> dict:
+    out = {}
+    for pair in os.environ.get("AWIN_ADVERTISER_IDS", "").split(","):
+        if "=" in pair:
+            k, v = pair.split("=", 1)
+            if k.strip() and v.strip().isdigit():
+                out[k.strip().lower()] = v.strip()
+    return out
 
 
 def build_affiliate_link(shop: str) -> tuple[Optional[str], Optional[str]]:
     key = (shop or "").strip().lower()
-    base_url, awin_mid = SHOP_LINKS.get(key, (None, None))
+    base_url = SHOP_HOMEPAGES.get(key)
     if not base_url:
         return None, None
-    if awin_mid and AWIN_ID != "DEMO":
-        aff = f"https://www.awin1.com/cread.php?awinmid={awin_mid}&awinaffid={AWIN_ID}&ued={base_url}"
+    amazon_tag = os.environ.get("AMAZON_PARTNER_TAG", "").strip()
+    if key.startswith("amazon") and amazon_tag:
+        return base_url, f"{base_url}?tag={quote(amazon_tag)}"
+    publisher = os.environ.get("AWIN_PUBLISHER_ID", "").strip()
+    advertiser = _awin_advertisers().get(key)
+    if publisher and advertiser:
+        aff = (f"https://www.awin1.com/cread.php?awinmid={advertiser}"
+               f"&awinaffid={quote(publisher)}&ued={quote(base_url, safe='')}")
         return base_url, aff
-    return base_url, base_url
+    return base_url, None
 
 
 def _now() -> datetime:
@@ -344,7 +375,8 @@ async def _expire_stale() -> None:
     )
 
 
-IMG_HOSTS = ("static.mydealz.de", "www.dealdoktor.de", "dealdoktor.de")
+IMG_HOSTS = ("static.mydealz.de", "www.dealdoktor.de", "dealdoktor.de", "static.preisjaeger.at",
+             "www.mytopdeals.net", "mytopdeals.net", "www.sparhamster.at", "sparhamster.at")
 
 
 @api_router.get("/img")
@@ -596,7 +628,53 @@ async def stats():
     }
 
 
+auth_router, current_user = make_auth(db)
+
+
+class StashIn(BaseModel):
+    items: List[dict] = Field(default_factory=list, max_length=500)
+
+
+@api_router.get("/stash")
+async def get_stash(request: Request):
+    user = await current_user(request)
+    doc = await db.stashes.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    return {"items": (doc or {}).get("items", [])}
+
+
+@api_router.put("/stash")
+async def put_stash(body: StashIn, request: Request):
+    user = await current_user(request)
+    await db.stashes.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"user_id": user["user_id"], "items": body.items, "updated_at": _now()}},
+        upsert=True,
+    )
+    return {"ok": True, "count": len(body.items)}
+
+
+@api_router.get("/hall-of-fame")
+async def hall_of_fame(limit: int = 20):
+    docs = await db.glitches.aggregate([
+        {"$match": {"$or": [{"type": "price_error"}, {"discount_pct": {"$gte": 50}}]}},
+        {"$addFields": {"saving": {"$cond": [
+            {"$and": [{"$gt": ["$original_price", None]}, {"$gt": ["$glitched_price", None]}]},
+            {"$subtract": ["$original_price", "$glitched_price"]}, 0]}}},
+        {"$sort": {"saving": -1, "discount_pct": -1, "temperature": -1}},
+        {"$limit": max(1, min(limit, 50))},
+    ]).to_list(50)
+    out = []
+    for d in docs:
+        g = GlitchDoc.from_mongo(d)
+        if g:
+            item = g.out()
+            item["saving"] = round(_f(d.get("saving")), 2)
+            out.append(item)
+    return out
+
+
 app.include_router(api_router)
+app.include_router(auth_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -617,6 +695,8 @@ async def startup():
     if removed.deleted_count:
         logger.info(f"{removed.deleted_count} simulierte Funde entfernt")
     await db.glitches.create_index("source_url", unique=True)
+    await db.scans.update_many({"status": "running"}, {"$set": {"status": "failed", "error": "Server-Neustart"}})
+    await ensure_auth_indexes(db)
     await db.glitches.create_index([("status", 1), ("published_at", -1)])
     asyncio.create_task(_poll_loop())
 

@@ -1,0 +1,40 @@
+{
+  "summary": "GlitchRadar iteration_3 (auth + stash sync + hall of fame + more feeds + real-only affiliate) FULL PASS. Backend: 37/37 pytest cases PASS (15 new auth/stash/HOF/feeds/affiliate + 22 regressions from iteration_2). AUTH: /auth/register returns 201 w/ token+user (password_hash never leaked); duplicate email -> 409; invalid email -> 422; <8-char pw -> 422; /auth/login returns 200 and generic 'E-Mail oder Passwort falsch' on wrong pw (401); brute-force throwaway account 5 wrong -> next attempt 429 (main account preserved); /auth/me 200 w/ Bearer, 401 after /auth/logout; /auth/session rejects bogus session_id with 401. STASH: GET/PUT both 401 without Bearer, PUT persists items, GET returns them for main test account; stash reset to [] at test end (verified via GET). HALL OF FAME: /hall-of-fame?limit=N returns array of price_error OR discount>=50 entries (currently 24 live entries incl. +150€ Luhomfu Couchtisch), each with numeric 'saving' field and source_url, sorted by saving desc; limit works (<=3). FEEDS: new source labels present on /api/ (MYDEALZ · PREISFEHLER/GUTSCHEINE/HOT/GRATIS, DEALDOKTOR, PREISJÄGER · PREISFEHLER/HOT, MYTOPDEALS, SPARHAMSTER); live radar data includes mytopdeals.net and preisjaeger.at URLs. /api/img proxy allows static.preisjaeger.at (bogus-path returns 404/502 NOT 400, i.e. host-allowed). AFFILIATE: with AWIN/AMAZON env unset, every tested glitch has affiliate_url null; all url values are https. FRONTEND (390x844, Expo web): Terminal account card correctly swaps between terminal-login-button (logged out, 'Anmelden oder registrieren') and terminal-logout-button + email (logged in, 'ABMELDEN'); terminal-link-hof present; /login screen renders login-google-button (not clicked, as instructed), login-email-input, login-password-input, login-submit-button, login-toggle-mode; wrong-password login raises login-error inline; correct credentials close modal and reveal ABMELDEN + tester@glitchradar.app on terminal. Hall of Fame: radar-hof-banner at top of radar list navigates to /hall-of-fame; hof-entry-0 renders '+150,00 €' saving for #1 Luhomfu Couchtisch; hof-back-button and hof-share-button present. PRO (logged in): pro-login-banner correctly absent, pro-identity-banner shown while RevenueCat links the account, two packages rendered (MONATLICH · $9.99, JÄHRLICH · $79.99) with pro-buy-$rc_monthly / pro-buy-$rc_annual present and NOT disabled. Stash sync: PUT /api/stash w/ Bearer persists one item, GET returns it, subsequent empty PUT resets to [] - verified via live API with the main test account's token. Regression (iteration_2): RADAR/CODES/STASH/TERMINAL tabs all navigate, filter chips rendered, cards show source_label incl. 'MYDEALZ · GRATIS' and 'DEALDOKTOR-FUND'. Deprecated packages detected: NONE (no expo-av / expo-barcode-scanner / expo-background-fetch). React-native-web pointerEvents deprecation warning persists (library-level, non-blocking).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "react-native-web pointerEvents", "issue": "Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents' — library-level (reanimated / expo-router tabs), non-blocking."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_auth_stash_hof.py",
+    "/app/backend/tests/test_glitchradar_api.py",
+    "/app/test_reports/pytest/pytest_results.xml",
+    "/app/test_reports/pytest/pytest_auth_results.xml"
+  ],
+  "action_items": [
+    "None blocking. Optional UX polish: on /pro while logged in, the 'Verknüpfe Konto mit dem Store' identity-banner stays visible even after buy buttons become enabled — consider hiding the banner once RevenueCat identity has synced to avoid showing two conflicting states (banner says 'syncing' but buy is already enabled)."
+  ],
+  "critical_code_review_comments": [
+    "auth.py cleanly separates email/pw (JWT) from Emergent Google session paths; both resolve to the same users.user_id. Dummy bcrypt hash prevents timing side-channel for unknown emails. login_attempts collection has unique index on email.",
+    "Brute-force lockout correctly resets fails counter on success (delete_one) and uses tz-aware comparison via _aware helper — no naive-datetime trap.",
+    "Logout handles both Google sessions (delete from user_sessions) and local JWTs (revoke by jti with TTL index), so a reused token after logout always returns 401.",
+    "server.py GET /auth/me and public_user() excludes password_hash via Mongo projection + explicit field whitelist — defense in depth.",
+    "hall-of-fame aggregation computes 'saving' only when both prices exist; sorts by saving desc, discount_pct desc, temperature desc — stable ranking even when prices are null.",
+    "build_affiliate_link() returns (homepage, None) when AWIN/AMAZON env missing, so the UI never shows a fake partner URL. Amazon path uses urllib.parse.quote on the tag.",
+    "feeds.py adds four new RSS sources (preisjaeger x2, mytopdeals, sparhamster, mydealz gratis) with per-feed default_type and defensive per-item try/except so one broken feed does not break ingestion.",
+    "IMG_HOSTS allow-list updated for the new feed image CDNs (static.preisjaeger.at, mytopdeals.net, sparhamster.at)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_auth_stash_hof.py (new - 15 tests for auth, stash, HOF, feeds, affiliate)",
+    "/app/backend/tests/test_glitchradar_api.py (relaxed source_url host check to accept the four new feed hostnames)"
+  ],
+  "success_rate": {"backend": "100% (37/37)", "frontend": "100% critical flows"},
+  "seed_data_creation": "None. Uses live German deal RSS data. Test account tester@glitchradar.app registered/reused and left with stash=[] at end.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Public URL from frontend/.env: https://error-scout-20.preview.emergentagent.com (review-request also mentioned ef0831a2-72e3-485c-9bf0-5466904ee406.preview.emergentagent.com — both proxy to the same backend). Full regression /app/backend/tests/ runs in ~18s w/ xdist. Main test account: tester@glitchradar.app / GlitchTest2026! (see /app/memory/test_credentials.md). Brute-force test uses throwaway TEST_* emails only, so main account is never locked. Simulated RevenueCat Test Store purchase was NOT exercised to avoid toggling pro-active state; worth running if main agent changes paywall logic. HOF endpoint relies on live feed quality — currently 24 qualifying entries; expect this to vary. Image proxy test for new hosts uses a bogus URL and asserts not-400 (host allow-listed) rather than fetching a real image."
+}

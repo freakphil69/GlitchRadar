@@ -21,15 +21,21 @@
 ## Implemented
 - 2026-10-19: MVP (radar, scout, stash, terminal), affiliate links, share savings, logo/icons
 - 2026-10-22: real RSS finds (AI simulations removed), source + age display, images, temperature, code vault with voting, PRO paywall (3 free manual scans/day), imprint/privacy/ad label, tests iteration_2 passed (22/22 backend)
+- 2026-10-23: login (email/password JWT + Emergent Google, optional), RevenueCat logIn/logOut, stash account sync, Hall of Fame (+ banner, share), new sources (mydealz Gratis, Preisjäger Preisfehler/Hot, myTopDeals, Sparhamster), affiliate only with real IDs (AWIN_PUBLISHER_ID, AWIN_ADVERTISER_IDS "shop=id,…", AMAZON_PARTNER_TAG), PRO 9.99 €/79.99 €, tests iteration_3 passed (37/37 backend)
 
 ## Known Limits
-- Purchases blocked until login exists (RevenueCat requires a stable user ID)
+- 25% intro offer for 3 months must be created in App Store Connect / Play Console
 - Real store purchases need App Store/Play products + credentials (RevenueCat FAQ in the payments panel)
-- Affiliate commissions need AWIN_PUBLISHER_ID
-- Deal content comes from third-party feeds → short excerpt + link to the original; clarify permission/partnership with mydealz before a large launch
+- Affiliate commissions only after the user's partner IDs are entered
+- Deal content comes from third-party feeds → short excerpt + link to the original; clarify permission/partnership with the feed operators before a large launch
 
 ## Backlog
-- P0: login (JWT or Google) → enables PRO purchases
 - P1: push alerts for new price errors (needs a build)
-- P1: more sources (e.g. Preisjäger, retailer price feeds)
-- P2: hall of fame, referral, sponsored signals
+- P1: account deletion in the app (currently by email)
+- P2: referral, sponsored signals, personal alerts per shop/keyword
+
+## Iteration 4 (Juni 2026)
+- Google-Login (Emergent) verifiziert: Button + Redirect + /api/auth/session (401 bei ungültiger ID)
+- Terminal: PRO/Free-Plan-Banner (testID terminal-plan-banner) mit Konto-Bindung + RevenueCat-Identity-Fehler
+- Quellen-Texte um Preisjäger ergänzt
+- Offen: AWIN_ID (Platzhalter), optional Push-Alerts

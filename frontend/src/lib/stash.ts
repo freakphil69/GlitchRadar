@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { storage } from "@/src/utils/storage";
+import { apiGet, apiPut, getAuthToken } from "./api";
 import type { Glitch } from "./types";
 
 // Stash = local watchlist + claimed ledger. Snapshots are stored because glitches
@@ -26,6 +27,21 @@ export async function loadStash(): Promise<StashItem[]> {
 
 async function saveStash(items: StashItem[]): Promise<void> {
   await storage.setItem(KEY, JSON.stringify(items));
+  // Logged-in users get the stash mirrored to their account (best effort, offline-safe).
+  if (getAuthToken()) apiPut("/stash", { items }).catch(() => {});
+}
+
+// Merge local + account stash after login: union by glitch id, a claimed entry wins.
+export async function syncStash(): Promise<void> {
+  const remote = (await apiGet<{ items: StashItem[] }>("/stash")).items ?? [];
+  const local = await loadStash();
+  const merged = new Map<string, StashItem>();
+  for (const it of [...remote, ...local]) {
+    const prev = merged.get(it.glitch.id);
+    if (!prev || (it.claimed && !prev.claimed)) merged.set(it.glitch.id, it);
+  }
+  const items = Array.from(merged.values()).sort((a, b) => b.savedAt.localeCompare(a.savedAt));
+  await saveStash(items);
 }
 
 export function useStash() {
@@ -68,7 +84,7 @@ export function useStashActions() {
 
   const clear = useMutation({
     mutationFn: async () => {
-      await storage.removeItem(KEY);
+      await saveStash([]);
     },
     onSuccess: done,
   });

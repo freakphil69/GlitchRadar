@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ChipRow } from "@/src/components/ChipRow";
 import { useToast } from "@/src/components/Toast";
+import { useAuth } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
 import { useStashActions } from "@/src/lib/stash";
 import { useSettings, useUpdateSettings } from "@/src/lib/settings";
@@ -19,7 +20,7 @@ const DISCOUNT_CHIPS = [
 ];
 
 const MODEL_STACK = [
-  { role: "QUELLEN", model: "MYDEALZ + DEALDOKTOR", job: "Echte Funde aus Live-Feeds, alle 10 Min" },
+  { role: "QUELLEN", model: "MYDEALZ + PREISJÄGER + DEALDOKTOR", job: "Echte Funde aus Live-Feeds, alle 10 Min" },
   { role: "SCORING", model: "GEMINI 3 FLASH", job: "Bewertet Risiko + Trefferquote" },
   { role: "ANALYST", model: "CLAUDE SONNET 5.5", job: "Schritt-für-Schritt-Pläne zu echten Funden" },
 ];
@@ -34,7 +35,13 @@ export default function TerminalScreen() {
   const update = useUpdateSettings();
   const stashActions = useStashActions();
   const { isSubscribed } = useSubscription();
+  const auth = useAuth();
   const bottomChrome = usesNativeTabs ? insets.bottom : 0;
+
+  const onLogout = async () => {
+    await auth.logout();
+    toast("Abgemeldet", "info");
+  };
 
   const onClearStash = () => {
     stashActions.clear.mutate();
@@ -43,6 +50,7 @@ export default function TerminalScreen() {
 
   const links = [
     { id: "pro", icon: "crown", title: isSubscribed ? "PRO ist aktiv" : "GlitchRadar PRO holen", text: "Unbegrenzte Scans und KI-Pläne", to: "/pro" },
+    { id: "hof", icon: "trophy", title: "Hall of Fame", text: "Die größten echten Preisfehler aller Zeiten", to: "/hall-of-fame" },
     { id: "scout", icon: "radar", title: "Scout & Scan-Protokoll", text: "Live-Quellen manuell abfragen", to: "/scout" },
     { id: "legal", icon: "scale-balance", title: "Impressum & Datenschutz", text: "Rechtliches und Werbehinweis", to: "/legal" },
   ] as const;
@@ -55,6 +63,54 @@ export default function TerminalScreen() {
       >
         <Text style={styles.title}>TERMINAL</Text>
         <Text style={styles.subtitle}>Scanner-Konfiguration und System-Info.</Text>
+
+        <View style={[styles.card, { marginBottom: spacing.md }]} testID="terminal-account-card">
+          {auth.user ? (
+            <View style={styles.row}>
+              <MaterialCommunityIcons name="account-circle" size={28} color={colors.success} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowTitle} numberOfLines={1}>{auth.user.name || auth.user.email}</Text>
+                <Text style={styles.rowText} numberOfLines={1}>{auth.user.email} · Stash wird synchronisiert</Text>
+              </View>
+              <Pressable testID="terminal-logout-button" onPress={onLogout} style={styles.dangerButton} hitSlop={6}>
+                <Text style={styles.dangerButtonText}>ABMELDEN</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <Pressable testID="terminal-login-button" onPress={() => router.push("/login")} style={styles.row}>
+              <MaterialCommunityIcons name="account-plus" size={24} color={colors.brandPrimary} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowTitle}>Anmelden oder registrieren</Text>
+                <Text style={styles.rowText}>Google oder E-Mail – für PRO und Stash-Sync</Text>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={20} color={colors.muted} />
+            </Pressable>
+          )}
+          <View style={styles.divider} />
+          <Pressable testID="terminal-plan-banner" onPress={() => router.push("/pro")} style={styles.row}>
+            <MaterialCommunityIcons
+              name={isSubscribed ? "crown" : "crown-outline"}
+              size={22}
+              color={isSubscribed ? colors.success : colors.muted}
+            />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowTitle}>{isSubscribed ? "PRO aktiv" : "Free-Plan"}</Text>
+              <Text style={styles.rowText} numberOfLines={2}>
+                {isSubscribed
+                  ? auth.user
+                    ? `An dein Konto gebunden: ${auth.user.email}`
+                    : "Auf diesem Gerät aktiv – melde dich an, um PRO überall zu nutzen"
+                  : "Begrenzte Scans pro Tag – PRO schaltet alles frei"}
+              </Text>
+              {auth.identityError ? (
+                <Text testID="terminal-identity-error" style={styles.errorText} numberOfLines={2}>
+                  PRO-Konto konnte nicht verknüpft werden. Bitte später erneut versuchen.
+                </Text>
+              ) : null}
+            </View>
+            <Text style={[styles.planBadge, isSubscribed && styles.planBadgePro]}>{isSubscribed ? "PRO" : "FREE"}</Text>
+          </Pressable>
+        </View>
 
         <View style={styles.card}>
           {links.map((l, idx) => (
@@ -121,7 +177,7 @@ export default function TerminalScreen() {
         <View style={styles.disclaimer}>
           <Text style={styles.disclaimerTitle}>HINWEIS</Text>
           <Text style={styles.disclaimerText}>
-            Funde stammen aus öffentlichen Deal-Feeds (mydealz, DealDoktor) — immer mit Link zum Original.
+            Funde stammen aus öffentlichen Deal-Feeds (mydealz, Preisjäger, DealDoktor) — immer mit Link zum Original.
             Shops können Preisfehler stornieren, rechne immer damit. Nutze Käuferschutz, mache Screenshots
             und bestelle nur, was du wirklich brauchst.
           </Text>
@@ -216,6 +272,28 @@ const useStyles = makeStyles((c) => ({
     borderRadius: radius.sm,
     paddingHorizontal: 12,
     height: 36,
+  },
+  errorText: {
+    fontFamily: fonts.textRegular,
+    fontSize: 12,
+    color: c.error,
+    marginTop: 4,
+  },
+  planBadge: {
+    fontFamily: fonts.mono,
+    fontSize: 11,
+    letterSpacing: 1.5,
+    color: c.muted,
+    borderWidth: 1,
+    borderColor: c.border,
+    borderRadius: radius.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    overflow: "hidden",
+  },
+  planBadgePro: {
+    color: c.success,
+    borderColor: c.success,
   },
   dangerButtonText: {
     fontFamily: fonts.mono,

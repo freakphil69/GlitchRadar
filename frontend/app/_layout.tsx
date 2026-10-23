@@ -7,6 +7,7 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 
 import { ErrorBoundary } from "@/src/components/error-boundary";
 import { ToastProvider } from "@/src/components/Toast";
+import { AuthProvider } from "@/src/lib/auth";
 import { initializeRevenueCat, SubscriptionProvider } from "@/src/lib/revenuecat";
 import { queryClient } from "@/src/query-client";
 import { useTheme } from "@/src/theme";
@@ -32,6 +33,7 @@ export default function RootLayout() {
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <SubscriptionProvider>
+            <AuthProvider>
             <KeyboardProvider>
               <StatusBar style="light" />
               <ToastProvider>
@@ -40,10 +42,13 @@ export default function RootLayout() {
                   <Stack.Screen name="glitch/[id]" options={{ presentation: "modal" }} />
                   <Stack.Screen name="scout" />
                   <Stack.Screen name="pro" options={{ presentation: "modal" }} />
+                  <Stack.Screen name="login" options={{ presentation: "modal" }} />
+                  <Stack.Screen name="hall-of-fame" />
                   <Stack.Screen name="legal" />
                 </Stack>
               </ToastProvider>
             </KeyboardProvider>
+            </AuthProvider>
           </SubscriptionProvider>
         </QueryClientProvider>
       </ErrorBoundary>

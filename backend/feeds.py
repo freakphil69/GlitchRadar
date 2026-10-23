@@ -24,6 +24,11 @@ FEEDS = [
     ("https://www.mydealz.de/rss/gutscheine", "mydealz", "MYDEALZ · GUTSCHEINE", "coupon"),
     ("https://www.mydealz.de/rss/hot", "mydealz", "MYDEALZ · HOT", None),
     ("https://www.dealdoktor.de/feed/", "dealdoktor", "DEALDOKTOR", None),
+    ("https://www.mydealz.de/rss/gruppe/freebies", "mydealz", "MYDEALZ · GRATIS", None),
+    ("https://www.preisjaeger.at/rss/gruppe/preisfehler", "preisjaeger", "PREISJÄGER · PREISFEHLER", "price_error"),
+    ("https://www.preisjaeger.at/rss/hot", "preisjaeger", "PREISJÄGER · HOT", None),
+    ("https://www.mytopdeals.net/feed/", "mytopdeals", "MYTOPDEALS", None),
+    ("https://www.sparhamster.at/feed/", "sparhamster", "SPARHAMSTER", None),
 ]
 
 NS = {
@@ -98,7 +103,7 @@ def _parse_item(it: ET.Element, source: str, label: str, default_type: Optional[
     pct_attr = merchant_el.get("discount") if merchant_el is not None else None
     if not shop:
         sm = re.match(r"^\s*\[?\s*([A-Za-z0-9&.\- ]{2,30}?)\s*\]?\s*[:|]", title)
-        shop = sm.group(1).strip() if sm else ("DealDoktor-Fund" if source == "dealdoktor" else "Online-Deal")
+        shop = sm.group(1).strip() if sm else ({"dealdoktor": "DealDoktor-Fund", "mytopdeals": "myTopDeals-Fund", "sparhamster": "Sparhamster-Fund"}.get(source, "Online-Deal"))
 
     title_and_desc = f"{title} {desc_text}"
     original = None

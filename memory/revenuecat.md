@@ -8,8 +8,10 @@ This file is a memory for interacting with the user's RevenueCat account via the
 - entitlement_lookup_key: pro
 - offering_lookup_key: default
 - Packages (package -> product_id, current price):
-  - $rc_monthly -> prodd2ef7c0371   (4.99 USD / 4.99 EUR, P1M, trial: none)
-  - $rc_annual  -> prodd76ebf060f   (39.99 USD / 39.99 EUR, P1Y, trial: none)
+  - $rc_monthly -> prodd2ef7c0371   (9.99 EUR / 9.99 USD, P1M, trial: none)
+  - $rc_annual  -> prodd76ebf060f   (79.99 EUR / 79.99 USD, P1Y, trial: none)
+- Intro offer wanted by user: 25% off (7.49 €) for the first 3 months — NOT settable via proxy (only "trial");
+  user must create it as introductory offer in App Store Connect / Play Console. Paywall shows product.introPrice automatically.
 - Dashboard: https://app.revenuecat.com/projects/proj836830ba
 
 ## Status check (use the Bearer emergent key header, never store it here)
@@ -31,4 +33,4 @@ If project_state is below project_created, re-fetch the RevenueCat playbook via 
 All steps are also listed in the FAQ section of the payments panel.
 
 ## Identity
-App has no auth yet. Purchases.logIn needs a stable user id → purchases are blocked (identity_not_ready) until login exists.
+Auth exists (2026-10-23): AuthProvider (src/lib/auth.tsx) calls Purchases.logIn(user.user_id) on restore/login/register and Purchases.logOut() on logout.

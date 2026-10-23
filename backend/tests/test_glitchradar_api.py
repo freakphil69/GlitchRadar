@@ -35,7 +35,10 @@ def test_list_glitches_real_sources(session):
     for g in data:
         assert g.get("source_url"), f"missing source_url: {g}"
         host = g["source_url"]
-        assert ("mydealz.de" in host) or ("dealdoktor.de" in host), host
+        assert any(h in host for h in (
+            "mydealz.de", "dealdoktor.de", "preisjaeger.at",
+            "mytopdeals.net", "sparhamster.at",
+        )), host
         assert g.get("source_label"), "missing source_label"
         assert g.get("published_at")
         # Must NOT be a KI/DEMO find

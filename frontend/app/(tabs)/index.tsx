@@ -66,6 +66,16 @@ export default function RadarScreen() {
         renderItem={({ item, index }) => <GlitchCard glitch={item} index={index} />}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        ListHeaderComponent={
+          <Pressable testID="radar-hof-banner" onPress={() => router.push("/hall-of-fame")} style={styles.hofBanner}>
+            <MaterialCommunityIcons name="trophy" size={20} color={colors.warning} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.hofTitle}>HALL OF FAME</Text>
+              <Text style={styles.hofText}>Die krassesten echten Preisfehler aller Zeiten</Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={20} color={colors.muted} />
+          </Pressable>
+        }
         refreshControl={
           <RefreshControl
             refreshing={list.isRefetching && !list.isLoading}
@@ -119,6 +129,18 @@ const useStyles = makeStyles((c) => ({
     gap: spacing.md,
     paddingBottom: spacing.xl,
   },
+  hofBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    borderWidth: 1,
+    borderColor: c.warning,
+    backgroundColor: c.surfaceSecondary,
+    borderRadius: radius.md,
+    padding: spacing.md,
+  },
+  hofTitle: { fontFamily: fonts.mono, fontSize: 12, letterSpacing: 2, color: c.warning },
+  hofText: { fontFamily: fonts.textRegular, fontSize: 12, color: c.onSurfaceTertiary },
   stateBox: {
     alignItems: "center",
     gap: spacing.sm,
