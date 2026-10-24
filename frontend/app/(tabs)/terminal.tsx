@@ -7,7 +7,9 @@ import { ChipRow } from "@/src/components/ChipRow";
 import { useToast } from "@/src/components/Toast";
 import { useAuth } from "@/src/lib/auth";
 import { useSubscription } from "@/src/lib/revenuecat";
-import { useStashActions } from "@/src/lib/stash";
+import { fmtMoney } from "@/src/lib/format";
+import { useStash, useStashActions } from "@/src/lib/stash";
+import { savingOf } from "@/src/lib/types";
 import { useSettings, useUpdateSettings } from "@/src/lib/settings";
 import { usesNativeTabs } from "@/src/navigation";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -34,6 +36,7 @@ export default function TerminalScreen() {
   const settings = useSettings();
   const update = useUpdateSettings();
   const stashActions = useStashActions();
+  const stash = useStash();
   const { isSubscribed } = useSubscription();
   const auth = useAuth();
   const bottomChrome = usesNativeTabs ? insets.bottom : 0;
@@ -48,8 +51,25 @@ export default function TerminalScreen() {
     toast("Stash geleert", "info");
   };
 
+  const favCount = settings.favShops.length + settings.favCategories.length;
+  const favText = favCount > 0 ? `${favCount} Favoriten filtern das Radar` : "Radar auf deine Shops und Kategorien filtern";
+
+  const claimed = (stash.data ?? []).filter((i) => i.claimed);
+  const savedTotal = claimed.reduce((s, i) => s + savingOf(i.glitch), 0);
+  const best = claimed.reduce<(typeof claimed)[number] | null>(
+    (b, i) => (!b || savingOf(i.glitch) > savingOf(b.glitch) ? i : b),
+    null,
+  );
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+  const savedMonth = claimed
+    .filter((i) => new Date(i.savedAt) >= monthStart)
+    .reduce((s, i) => s + savingOf(i.glitch), 0);
+
   const links = [
     { id: "pro", icon: "crown", title: isSubscribed ? "PRO ist aktiv" : "GlitchRadar PRO holen", text: "Unbegrenzte Scans und KI-Pläne", to: "/pro" },
+    { id: "favorites", icon: "store-check", title: "Lieblings-Shops", text: favText, to: "/favorites" },
     { id: "hof", icon: "trophy", title: "Hall of Fame", text: "Die größten echten Preisfehler aller Zeiten", to: "/hall-of-fame" },
     { id: "scout", icon: "radar", title: "Scout & Scan-Protokoll", text: "Live-Quellen manuell abfragen", to: "/scout" },
     { id: "legal", icon: "scale-balance", title: "Impressum & Datenschutz", text: "Rechtliches und Werbehinweis", to: "/legal" },
@@ -109,6 +129,37 @@ export default function TerminalScreen() {
               ) : null}
             </View>
             <Text style={[styles.planBadge, isSubscribed && styles.planBadgePro]}>{isSubscribed ? "PRO" : "FREE"}</Text>
+          </Pressable>
+        </View>
+
+        <Text style={[styles.sectionTitle, { marginTop: 0 }]}>ERSPARNIS-STATISTIK</Text>
+        <View style={[styles.card, { marginBottom: spacing.md }]} testID="terminal-savings-card">
+          <Text style={styles.rowText}>INSGESAMT GESPART</Text>
+          <Text testID="terminal-savings-total" style={styles.savingsValue}>
+            {fmtMoney(savedTotal)}
+          </Text>
+          <View style={styles.statRow}>
+            <View style={styles.statCell}>
+              <Text style={styles.statValue}>{claimed.length}</Text>
+              <Text style={styles.rowText}>Glitches gekauft</Text>
+            </View>
+            <View style={styles.statCell}>
+              <Text style={styles.statValue}>{fmtMoney(savedMonth)}</Text>
+              <Text style={styles.rowText}>Diesen Monat</Text>
+            </View>
+          </View>
+          {best ? (
+            <Text style={styles.rowText} numberOfLines={2}>
+              Bester Fang: {best.glitch.title} (−{fmtMoney(savingOf(best.glitch))})
+            </Text>
+          ) : (
+            <Text style={styles.rowText}>
+              Markiere gekaufte Glitches im Stash als „gesichert“, dann rechnen wir deine Ersparnis hier zusammen.
+            </Text>
+          )}
+          <Pressable testID="terminal-savings-stash" onPress={() => router.push("/stash")} style={styles.linkBtn} hitSlop={6}>
+            <Text style={styles.linkBtnText}>ZUM STASH</Text>
+            <MaterialCommunityIcons name="chevron-right" size={16} color={colors.brandPrimary} />
           </Pressable>
         </View>
 
@@ -273,6 +324,19 @@ const useStyles = makeStyles((c) => ({
     paddingHorizontal: 12,
     height: 36,
   },
+  savingsValue: { fontFamily: fonts.displayBold, fontSize: 36, color: c.success, marginTop: 2 },
+  statRow: { flexDirection: "row", gap: spacing.md, marginVertical: spacing.sm },
+  statCell: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: c.border,
+    borderRadius: radius.sm,
+    padding: spacing.sm,
+    backgroundColor: c.surfaceTertiary,
+  },
+  statValue: { fontFamily: fonts.mono, fontSize: 16, color: c.onSurface },
+  linkBtn: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", gap: 2, marginTop: spacing.sm, minHeight: 32 },
+  linkBtnText: { fontFamily: fonts.mono, fontSize: 11, letterSpacing: 1, color: c.brandPrimary },
   errorText: {
     fontFamily: fonts.textRegular,
     fontSize: 12,

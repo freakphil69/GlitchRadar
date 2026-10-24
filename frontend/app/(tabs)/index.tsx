@@ -5,6 +5,7 @@ import MaterialCommunityIcons from "@react-native-vector-icons/material-design-i
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ChipRow } from "@/src/components/ChipRow";
+import { GlitchAlarm } from "@/src/components/GlitchAlarm";
 import { GlitchCard } from "@/src/components/GlitchCard";
 import { Ticker } from "@/src/components/Ticker";
 import { useGlitches, useStats } from "@/src/lib/queries";
@@ -39,9 +40,16 @@ export default function RadarScreen() {
   const [sort, setSort] = useState("new");
 
   const filters = useMemo(
-    () => ({ type, sort, minDiscount: settings.minDiscount }),
-    [type, sort, settings.minDiscount],
+    () => ({
+      type,
+      sort,
+      minDiscount: settings.minDiscount,
+      shops: settings.favShops,
+      categories: settings.favCategories,
+    }),
+    [type, sort, settings.minDiscount, settings.favShops, settings.favCategories],
   );
+  const favCount = settings.favShops.length + settings.favCategories.length;
   const list = useGlitches(filters);
   const stats = useStats();
 
@@ -67,14 +75,30 @@ export default function RadarScreen() {
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
-          <Pressable testID="radar-hof-banner" onPress={() => router.push("/hall-of-fame")} style={styles.hofBanner}>
-            <MaterialCommunityIcons name="trophy" size={20} color={colors.warning} />
-            <View style={{ flex: 1 }}>
-              <Text style={styles.hofTitle}>HALL OF FAME</Text>
-              <Text style={styles.hofText}>Die krassesten echten Preisfehler aller Zeiten</Text>
-            </View>
-            <MaterialCommunityIcons name="chevron-right" size={20} color={colors.muted} />
-          </Pressable>
+          <View style={{ gap: spacing.md }}>
+            <GlitchAlarm />
+            <Pressable testID="radar-hof-banner" onPress={() => router.push("/hall-of-fame")} style={styles.hofBanner}>
+              <MaterialCommunityIcons name="trophy" size={20} color={colors.warning} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.hofTitle}>HALL OF FAME</Text>
+                <Text style={styles.hofText}>Die krassesten echten Preisfehler aller Zeiten</Text>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={20} color={colors.muted} />
+            </Pressable>
+            <Pressable testID="radar-favorites-filter" onPress={() => router.push("/favorites")} style={styles.favRow}>
+              <MaterialCommunityIcons
+                name={favCount > 0 ? "filter-check" : "filter-outline"}
+                size={18}
+                color={favCount > 0 ? colors.brandPrimary : colors.muted}
+              />
+              <Text style={[styles.favText, favCount > 0 && { color: colors.brandPrimary }]} numberOfLines={1}>
+                {favCount > 0
+                  ? `NUR MEINE FAVORITEN · ${settings.favShops.length} SHOPS · ${settings.favCategories.length} KATEGORIEN`
+                  : "LIEBLINGS-SHOPS & KATEGORIEN WÄHLEN"}
+              </Text>
+              <MaterialCommunityIcons name="chevron-right" size={18} color={colors.muted} />
+            </Pressable>
+          </View>
         }
         refreshControl={
           <RefreshControl
@@ -103,7 +127,11 @@ export default function RadarScreen() {
             <View style={styles.stateBox} testID="feed-empty">
               <MaterialCommunityIcons name="radar" size={40} color={colors.muted} />
               <Text style={styles.stateTitle}>KEINE SIGNALE IM RADAR</Text>
-              <Text style={styles.stateText}>Löse einen Scout-Scan aus oder passe die Filter an.</Text>
+              <Text style={styles.stateText}>
+                {favCount > 0
+                  ? "Gerade nichts bei deinen Lieblings-Shops. Passe die Auswahl an oder warte auf den nächsten Scan."
+                  : "Löse einen Scout-Scan aus oder passe die Filter an."}
+              </Text>
               <Pressable
                 testID="empty-scan-button"
                 onPress={() => router.push("/scout")}
@@ -139,6 +167,18 @@ const useStyles = makeStyles((c) => ({
     borderRadius: radius.md,
     padding: spacing.md,
   },
+  favRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    minHeight: 44,
+    borderWidth: 1,
+    borderColor: c.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    backgroundColor: c.surfaceSecondary,
+  },
+  favText: { flex: 1, fontFamily: fonts.mono, fontSize: 11, letterSpacing: 1, color: c.onSurfaceTertiary },
   hofTitle: { fontFamily: fonts.mono, fontSize: 12, letterSpacing: 2, color: c.warning },
   hofText: { fontFamily: fonts.textRegular, fontSize: 12, color: c.onSurfaceTertiary },
   stateBox: {

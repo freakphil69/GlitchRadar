@@ -6,9 +6,17 @@ export interface Settings {
   autoScan: boolean;
   scanIntervalMin: number;
   minDiscount: number;
+  favShops: string[];
+  favCategories: string[];
 }
 
-export const DEFAULT_SETTINGS: Settings = { autoScan: true, scanIntervalMin: 30, minDiscount: 0 };
+export const DEFAULT_SETTINGS: Settings = {
+  autoScan: true,
+  scanIntervalMin: 30,
+  minDiscount: 0,
+  favShops: [],
+  favCategories: [],
+};
 
 const KEY = "gr_settings_v1";
 

@@ -1,21 +1,39 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiGet, apiPost } from "./api";
-import type { Glitch, Scan, ScanResult, Stats } from "./types";
+import type { AlarmGlitch, Facets, Glitch, Scan, ScanResult, Stats } from "./types";
 
 export interface GlitchFilters {
   type: string;
   sort: string;
   minDiscount: number;
+  shops: string[];
+  categories: string[];
 }
 
 export function useGlitches(filters: GlitchFilters) {
   return useQuery({
     queryKey: ["glitches", filters],
     queryFn: () =>
-      apiGet<Glitch[]>(`/glitches?type=${filters.type}&sort=${filters.sort}&min_discount=${filters.minDiscount}`),
+      apiGet<Glitch[]>(
+        `/glitches?type=${filters.type}&sort=${filters.sort}&min_discount=${filters.minDiscount}` +
+          `&shops=${encodeURIComponent(filters.shops.join(","))}` +
+          `&categories=${encodeURIComponent(filters.categories.join(","))}`,
+      ),
     refetchInterval: 30_000,
   });
+}
+
+export function useAlarm() {
+  return useQuery({
+    queryKey: ["alarm"],
+    queryFn: () => apiGet<AlarmGlitch[]>("/alarm"),
+    refetchInterval: 30_000,
+  });
+}
+
+export function useFacets() {
+  return useQuery({ queryKey: ["facets"], queryFn: () => apiGet<Facets>("/facets") });
 }
 
 export function useCodes(shop: string) {

@@ -38,6 +38,21 @@ export interface Glitch {
   created_at: string;
 }
 
+export interface AlarmGlitch extends Glitch {
+  alarm_reason: "expiring" | "fresh";
+  alarm_deadline: string;
+}
+
+export interface Facet {
+  name: string;
+  count: number;
+}
+
+export interface Facets {
+  shops: Facet[];
+  categories: Facet[];
+}
+
 export function savingOf(g: Pick<Glitch, "original_price" | "glitched_price">): number {
   if (g.original_price == null || g.glitched_price == null) return 0;
   return Math.max(0, g.original_price - g.glitched_price);

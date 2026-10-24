@@ -44,6 +44,7 @@ export default function RootLayout() {
                   <Stack.Screen name="pro" options={{ presentation: "modal" }} />
                   <Stack.Screen name="login" options={{ presentation: "modal" }} />
                   <Stack.Screen name="hall-of-fame" />
+                  <Stack.Screen name="favorites" />
                   <Stack.Screen name="legal" />
                 </Stack>
               </ToastProvider>

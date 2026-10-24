@@ -39,3 +39,9 @@
 - Terminal: PRO/Free-Plan-Banner (testID terminal-plan-banner) mit Konto-Bindung + RevenueCat-Identity-Fehler
 - Quellen-Texte um Preisjäger ergänzt
 - Offen: AWIN_ID (Platzhalter), optional Push-Alerts
+
+## Iteration 5 (Juni 2026)
+- Glitch-Alarm (GET /api/alarm, GlitchAlarm-Banner im Radar)
+- Lieblings-Shops & Kategorien (GET /api/facets, /favorites, Filter shops/categories in /api/glitches)
+- Ersparnis-Statistik im Terminal (aus gesicherten Stash-Einträgen)
+- Awin: AWIN_PUBLISHER_ID + AWIN_ADVERTISER_IDS ("zalando=1234,otto=5678") per Secrets angefragt

@@ -1,0 +1,29 @@
+{
+  "summary": "GlitchRadar iteration_5 — Glitch-Alarm, Lieblings-Shops favourites filter, and Terminal Ersparnis-Statistik: FULL PASS. BACKEND (9/9 pytest in /app/backend/tests/test_alarm_facets_favorites.py via /app/test_reports/pytest/pytest_iter5.xml): GET /api/alarm returns 200 with each item carrying alarm_reason ('expiring'|'fresh') and ISO alarm_deadline; seeded (expiring in 10 min, coupon) and (fresh price_error, published 2 min ago) both surface with the correct alarm_reason and status='active'. GET /api/facets returns {shops:[{name,count>0}], categories:[{name,count>0}]}; no shop name ends with '-Fund' and 'Online-Deal' is filtered out — real feed currently exposes shops like Amazon(39), MediaMarkt(12), Nintendo eShop(8), eBay, OTTO, etc. GET /api/glitches with shops=TestShopA filters to the seeded shop; shops=A,B returns a union; categories= filters by category; empty shops='' & categories='' regression confirms all glitches still return; unknown shop returns []. FRONTEND (viewport 390x844, Expo web preview at https://error-scout-20.preview.emergentagent.com): seeded 2 synthetic alarm glitches, Radar renders testID glitch-alarm with 3 live items (NEUER PREISFEHLER / LÄUFT AB labels, countdowns 12:23 / 10:58 / 09:23 visible), tapping glitch-alarm-item-{id} navigates to /glitch/{id}. radar-favorites-filter row renders 'LIEBLINGS-SHOPS & KATEGORIEN WÄHLEN' when empty, opens /favorites on tap. On /favorites: favorites-back-button, fav-shop-TestShopA chip toggles (border turns brandPrimary), favorites-reset-button appears post-selection; back returns to Radar and the row updates to 'NUR MEINE FAVORITEN · 1 SHOPS · 0 KATEGORIEN' with brandPrimary color — confirming settings propagated to the useGlitches query. Terminal: terminal-savings-card + terminal-savings-total render '0,00 €' baseline with help copy 'Markiere gekaufte Glitches im Stash als „gesichert“'. End-to-end: tapped glitch-stash-button-{seeded_id} on Radar (saved TEST UI Fresh Price Error, 500→50), opened Stash tab, saw stash-item-{id} and stash-claim-{id} buttons, marked it 'gesichert' (claim), returned to Terminal: terminal-savings-total = '450,00 €', 'Glitches gekauft' = 1, 'Diesen Monat' = 450,00 €, 'Bester Fang: TEST UI Fresh Price Error (−450,00 €)' — matches original_price − glitched_price. terminal-savings-stash navigates to /stash. terminal-link-favorites navigates to /favorites. terminal-plan-banner (iter_4) still renders alongside. All seeded data cleaned up (synthetic glitches deleted from DB; local stash item removed via stash-remove button after test). No red screen; no deprecated expo packages (expo-av/expo-background-fetch/expo-barcode-scanner) detected in the files_of_reference.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_alarm_facets_favorites.py",
+    "/app/test_reports/pytest/pytest_iter5.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py /api/alarm: window logic is correct — items where expires_at is within [now, now+15min] get alarm_reason='expiring' with expires_at as deadline; otherwise (price_error published within last 15 min) deadline = published_at + 15 min. Sorted by published_at desc, limit 10.",
+    "server.py /api/facets: shop filter uses a Python post-filter on each row (not a Mongo $nin match) — correct for both suffix '-Fund' and exact 'Online-Deal'. count=0 cannot leak because $match requires non-null/non-empty and aggregate counts active status only.",
+    "server.py /api/glitches: shops and categories lists are trimmed, length-capped at 50, and only applied when non-empty — matches regression requirement that empty params do no filtering.",
+    "favorites.tsx withSaved(): pre-pends saved favourite names that currently have 0 active glitches so users don't 'lose' their selection when the feed rotates — nice UX detail.",
+    "terminal.tsx savings math: filters stash.items.claimed, sums savingOf(glitch)=max(0, original_price-glitched_price), tracks best + current-month subtotal; all displayed only after real claims so empty state remains 0,00 €.",
+    "GlitchAlarm.tsx: returns null when alarm.data is empty (correct — banner only shows if backend returns items); countdown uses alarm_deadline from backend ISO string, not client-local recompute, so timezone drift is avoided."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (9/9 alarm+facets+favourites)", "frontend": "100% all requested testIDs and flows"},
+  "seed_data_creation": "Two synthetic alarm glitches inserted directly into db.glitches with source_url prefix 'https://www.mydealz.de/TEST_ui_alarm_*' to drive /api/alarm; both deleted after tests. Pytest fixture seed_alarm_glitches auto-cleans in test file.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Public URL EXPO_PUBLIC_BACKEND_URL=https://error-scout-20.preview.emergentagent.com. Viewport 390x844. New testIDs this iteration: glitch-alarm, glitch-alarm-item-{id}, radar-favorites-filter, favorites-back-button, favorites-reset-button, fav-shop-{name}, fav-cat-{name}, favorites-retry, terminal-savings-card, terminal-savings-total, terminal-savings-stash, terminal-link-favorites. Settings/stash are local (AsyncStorage) — a web browser refresh keeps them but a fresh browser context (incognito/new session) starts empty, so Terminal savings tests must save+claim within the same page session. /api/alarm will show empty [] if there are no fresh price_errors nor near-expiring glitches in the live feed; seed synthetic docs if needed. Auth features from iter_4 unchanged and not re-tested here."
+}

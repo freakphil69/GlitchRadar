@@ -395,13 +395,20 @@ async def image_proxy(u: str):
 
 
 @api_router.get("/glitches")
-async def list_glitches(type: str = "all", sort: str = "new", min_discount: int = 0):
+async def list_glitches(type: str = "all", sort: str = "new", min_discount: int = 0,
+                        shops: str = "", categories: str = ""):
     await _expire_stale()
     query: dict = {"status": "active"}
     if type != "all":
         query["type"] = type
     if min_discount > 0:
         query["discount_pct"] = {"$gte": min_discount}
+    shop_list = [s.strip() for s in shops.split(",") if s.strip()][:50]
+    cat_list = [c.strip() for c in categories.split(",") if c.strip()][:50]
+    if shop_list:
+        query["shop"] = {"$in": shop_list}
+    if cat_list:
+        query["category"] = {"$in": cat_list}
     order = {
         "new": [("published_at", -1)],
         "hot": [("temperature", -1), ("published_at", -1)],
@@ -415,6 +422,47 @@ async def list_glitches(type: str = "all", sort: str = "new", min_discount: int 
         if g:
             out.append(g.out())
     return out
+
+
+ALARM_MINUTES = 15
+
+
+@api_router.get("/alarm")
+async def glitch_alarm():
+    """Urgent finds: expiring within 15 min, or price errors fresher than 15 min."""
+    await _expire_stale()
+    now = _now()
+    window = timedelta(minutes=ALARM_MINUTES)
+    docs = await db.glitches.find({"status": "active", "$or": [
+        {"expires_at": {"$gte": now, "$lte": now + window}},
+        {"type": "price_error", "published_at": {"$gte": now - window}},
+    ]}).sort([("published_at", -1)]).to_list(10)
+    out = []
+    for d in docs:
+        g = GlitchDoc.from_mongo(d)
+        item = g.out()
+        if g.expires_at and now <= g.expires_at <= now + window:
+            item["alarm_reason"] = "expiring"
+            item["alarm_deadline"] = g.expires_at.isoformat()
+        else:
+            item["alarm_reason"] = "fresh"
+            item["alarm_deadline"] = (g.published_at + window).isoformat()
+        out.append(item)
+    return out
+
+
+@api_router.get("/facets")
+async def facets():
+    async def top(field: str) -> list:
+        rows = await db.glitches.aggregate([
+            {"$match": {"status": "active", field: {"$nin": [None, ""]}}},
+            {"$group": {"_id": f"${field}", "n": {"$sum": 1}}},
+            {"$sort": {"n": -1, "_id": 1}},
+            {"$limit": 40},
+        ]).to_list(40)
+        return [{"name": r["_id"], "count": r["n"]} for r in rows
+                if not (field == "shop" and (str(r["_id"]).endswith("-Fund") or r["_id"] == "Online-Deal"))]
+    return {"shops": await top("shop"), "categories": await top("category")}
 
 
 @api_router.get("/codes")
