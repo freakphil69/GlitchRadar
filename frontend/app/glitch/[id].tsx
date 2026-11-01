@@ -201,6 +201,21 @@ export default function GlitchDetailScreen() {
           ) : null}
         </View>
 
+        <Pressable
+          testID="detail-verify-source"
+          onPress={() => WebBrowser.openBrowserAsync(glitch.source_url)}
+          style={styles.verifyBox}
+        >
+          <MaterialCommunityIcons name="shield-search" size={22} color={colors.info} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.verifyTitle}>ECHTHEIT PRÜFEN</Text>
+            <Text style={styles.verifyText} numberOfLines={2}>
+              Original-Beitrag bei {glitch.source_label} ansehen{glitch.temperature != null ? ` · ${glitch.temperature}° Community-Bewertung` : ""}
+            </Text>
+          </View>
+          <MaterialCommunityIcons name="open-in-new" size={18} color={colors.info} />
+        </Pressable>
+
         {glitch.coupon_code ? (
           <View style={styles.codeBox}>
             <View style={{ flex: 1 }}>
@@ -417,6 +432,21 @@ const useStyles = makeStyles((c) => ({
     letterSpacing: 1,
     color: c.onBrandTertiary,
   },
+  verifyBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    minHeight: 56,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: c.info,
+    borderRadius: radius.md,
+    backgroundColor: c.surfaceSecondary,
+  },
+  verifyTitle: { fontFamily: fonts.mono, fontSize: 12, letterSpacing: 1.5, color: c.info },
+  verifyText: { fontFamily: fonts.textRegular, fontSize: 12, color: c.onSurfaceTertiary, marginTop: 2 },
   sourceBadge: {
     borderWidth: 1,
     borderRadius: radius.sm,

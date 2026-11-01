@@ -29,6 +29,8 @@ FEEDS = [
     ("https://www.preisjaeger.at/rss/hot", "preisjaeger", "PREISJÄGER · HOT", None),
     ("https://www.mytopdeals.net/feed/", "mytopdeals", "MYTOPDEALS", None),
     ("https://www.sparhamster.at/feed/", "sparhamster", "SPARHAMSTER", None),
+    ("https://www.mydealz.de/rss/gruppe/lieferservice", "mydealz", "MYDEALZ · LIEFERDIENSTE", None),
+    ("https://www.mydealz.de/rss/gruppe/fast-food", "mydealz", "MYDEALZ · FAST FOOD", None),
 ]
 
 NS = {

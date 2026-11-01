@@ -49,3 +49,9 @@
 ## Iteration 6 (Juni 2026)
 - Story-Grafik teilen (/share-savings, react-native-view-shot + expo-sharing)
 - Produktsuche im Radar (q-Parameter in /api/glitches, Mehrwort-Suche, ignoriert Favoriten-Filter, mydealz-Fallback)
+
+## Iteration 7 (Juni 2026)
+- Neue Paywall (pro.tsx) nach User-Vorlage in App-Orange: Woche/Jahr(empfohlen)/Monat Karten, Lifetime-Karte automatisch falls Paket existiert
+- RevenueCat: weekly 2,99 / monthly 7,99 / annual 49,99 EUR upserted; Offering zeigt aktuell nur weekly (Provisioning-Problem, offen)
+
+- Lieferdienst-Feeds (mydealz lieferservice + fast-food) ergänzt; „Echtheit prüfen“-Box auf Detailseite (Original-Beitrag + Community-Grad)

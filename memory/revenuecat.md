@@ -8,8 +8,11 @@ This file is a memory for interacting with the user's RevenueCat account via the
 - entitlement_lookup_key: pro
 - offering_lookup_key: default
 - Packages (package -> product_id, current price):
-  - $rc_monthly -> prodd2ef7c0371   (9.99 EUR / 9.99 USD, P1M, trial: none)
-  - $rc_annual  -> prodd76ebf060f   (79.99 EUR / 79.99 USD, P1Y, trial: none)
+  - $rc_weekly  -> prod4b66723662   (2.99 EUR, P1W, trial: none)  [added 2026-11-01]
+  - $rc_monthly -> prodf2cab5a906   (7.99 EUR, P1M, trial: none)  [re-created 2026-11-01 after stale-id error]
+  - $rc_annual  -> prod76b960b14a   (49.99 EUR, P1Y, trial: none) [re-created 2026-11-01 after stale-id error]
+- Lifetime 69.99 EUR wanted by user: NOT possible via proxy (period required). Paywall renders any extra package
+  (e.g. LIFETIME added in RevenueCat dashboard to offering 'default' + entitlement 'pro') automatically.
 - Intro offer wanted by user: 25% off (7.49 €) for the first 3 months — NOT settable via proxy (only "trial");
   user must create it as introductory offer in App Store Connect / Play Console. Paywall shows product.introPrice automatically.
 - Dashboard: https://app.revenuecat.com/projects/proj836830ba
@@ -34,3 +37,5 @@ All steps are also listed in the FAQ section of the payments panel.
 
 ## Identity
 Auth exists (2026-10-23): AuthProvider (src/lib/auth.tsx) calls Purchases.logIn(user.user_id) on restore/login/register and Purchases.logOut() on logout.
+
+- 2026-11-01: After DELETE+re-upsert of $rc_monthly/$rc_annual and re-running /setup, the Test Store offering still returns ONLY $rc_weekly (prices show in USD). Escalated to user; check offering "default" in dashboard.
