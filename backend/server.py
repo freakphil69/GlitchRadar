@@ -408,9 +408,14 @@ async def list_glitches(type: str = "all", sort: str = "new", min_discount: int 
             {"description": {"$regex": w, "$options": "i"}},
             {"category": {"$regex": w, "$options": "i"}},
         ]} for w in words]
-    if type != "all":
+    if type == "delivery":
+        query.setdefault("$and", []).append({"$or": [
+            {"source_label": {"$regex": "LIEFER|FAST FOOD"}},
+            {"title": {"$regex": DELIVERY_RE, "$options": "i"}},
+            {"shop": {"$regex": DELIVERY_RE, "$options": "i"}},
+        ]})
+    elif type != "all":
         query["type"] = type
-    if min_discount > 0:
         query["discount_pct"] = {"$gte": min_discount}
     shop_list = [s.strip() for s in shops.split(",") if s.strip()][:50]
     cat_list = [c.strip() for c in categories.split(",") if c.strip()][:50]
@@ -434,6 +439,8 @@ async def list_glitches(type: str = "all", sort: str = "new", min_discount: int 
 
 
 ALARM_MINUTES = 15
+DELIVERY_RE = (r"lieferando|wolt|uber ?eats|foodora|domino|burger ?king|mc ?donald|kfc|subway|pizza|"
+               r"flink|getir|knuspr|picnic|hellofresh|marley ?spoon|too ?good ?to ?go|lieferdienst|lieferservice|fast ?food")
 
 
 @api_router.get("/alarm")

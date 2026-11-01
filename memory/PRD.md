@@ -55,3 +55,7 @@
 - RevenueCat: weekly 2,99 / monthly 7,99 / annual 49,99 EUR upserted; Offering zeigt aktuell nur weekly (Provisioning-Problem, offen)
 
 - Lieferdienst-Feeds (mydealz lieferservice + fast-food) ergänzt; „Echtheit prüfen“-Box auf Detailseite (Original-Beitrag + Community-Grad)
+
+## Iteration 8
+- Schnellfilter LIEFERDIENSTE (type=delivery, Regex auf Shop/Titel/Quelle)
+- Letzte & beliebte Suchen unter dem Suchfeld (AsyncStorage, max 8)

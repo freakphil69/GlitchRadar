@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChipRow } from "@/src/components/ChipRow";
 import { GlitchAlarm } from "@/src/components/GlitchAlarm";
 import { GlitchCard } from "@/src/components/GlitchCard";
+import { POPULAR_SEARCHES, useRecentSearches } from "@/src/lib/recentSearches";
 import { Ticker } from "@/src/components/Ticker";
 import { useGlitches, useStats } from "@/src/lib/queries";
 import { useSettings } from "@/src/lib/settings";
@@ -14,6 +15,7 @@ import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
 const TYPE_CHIPS = [
   { key: "all", label: "ALLE" },
+  { key: "delivery", label: "LIEFERDIENSTE" },
   { key: "price_error", label: "PREISFEHLER" },
   { key: "coupon", label: "GUTSCHEINE" },
   { key: "stack", label: "STAPEL" },
@@ -46,6 +48,23 @@ export default function RadarScreen() {
     return () => clearTimeout(t);
   }, [search]);
   const searching = q.length > 0;
+  const [searchFocused, setSearchFocused] = useState(false);
+  const recentSearches = useRecentSearches();
+  const addRecent = recentSearches.add;
+
+  // Remember a term once the user has stopped typing for a moment.
+  useEffect(() => {
+    if (!q) return;
+    const t = setTimeout(() => addRecent(q), 1500);
+    return () => clearTimeout(t);
+  }, [q, addRecent]);
+
+  const pickSearch = (term: string) => {
+    setSearch(term);
+    setQ(term);
+    addRecent(term);
+    setSearchFocused(false);
+  };
 
   // Direct product search ignores the favourites filter so nothing gets hidden.
   const filters = useMemo(
@@ -85,7 +104,12 @@ export default function RadarScreen() {
             style={styles.searchInput}
             returnKeyType="search"
             autoCorrect={false}
-            onSubmitEditing={() => setQ(search.trim())}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
+            onSubmitEditing={() => {
+              setQ(search.trim());
+              addRecent(search);
+            }}
           />
           {search ? (
             <Pressable testID="radar-search-clear" onPress={() => setSearch("")} hitSlop={10} style={styles.searchClear}>
@@ -93,6 +117,37 @@ export default function RadarScreen() {
             </Pressable>
           ) : null}
         </View>
+        {searchFocused && !search ? (
+          <View style={styles.suggestBox} testID="search-suggestions">
+            {recentSearches.recent.length > 0 ? (
+              <>
+                <View style={styles.suggestHead}>
+                  <Text style={styles.suggestTitle}>ZULETZT GESUCHT</Text>
+                  <Pressable testID="search-recent-clear" onPress={recentSearches.clear} hitSlop={8}>
+                    <Text style={styles.suggestClear}>LÖSCHEN</Text>
+                  </Pressable>
+                </View>
+                <View style={styles.suggestWrap}>
+                  {recentSearches.recent.map((t) => (
+                    <Pressable key={t} testID={`search-recent-${t}`} onPress={() => pickSearch(t)} style={styles.suggestChip}>
+                      <MaterialCommunityIcons name="history" size={14} color={colors.muted} />
+                      <Text style={styles.suggestText}>{t}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </>
+            ) : null}
+            <Text style={[styles.suggestTitle, { marginTop: spacing.xs }]}>BELIEBT</Text>
+            <View style={styles.suggestWrap}>
+              {POPULAR_SEARCHES.map((t) => (
+                <Pressable key={t} testID={`search-popular-${t}`} onPress={() => pickSearch(t)} style={styles.suggestChip}>
+                  <MaterialCommunityIcons name="trending-up" size={14} color={colors.brandPrimary} />
+                  <Text style={styles.suggestText}>{t}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        ) : null}
         <ChipRow options={TYPE_CHIPS} value={type} onChange={setType} />
         <ChipRow options={SORT_CHIPS} value={sort} onChange={setSort} />
       </View>
@@ -235,6 +290,32 @@ const useStyles = makeStyles((c) => ({
   searchInput: { flex: 1, height: 48, color: c.onSurface, fontFamily: fonts.text, fontSize: 15 },
   searchClear: { width: 32, height: 44, alignItems: "center", justifyContent: "center" },
   searchSummary: { fontFamily: fonts.mono, fontSize: 11, letterSpacing: 1.5, color: c.muted },
+  suggestBox: {
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.sm,
+    padding: spacing.md,
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: c.border,
+    borderRadius: radius.sm,
+    backgroundColor: c.surfaceSecondary,
+  },
+  suggestHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  suggestTitle: { fontFamily: fonts.mono, fontSize: 10, letterSpacing: 2, color: c.muted },
+  suggestClear: { fontFamily: fonts.mono, fontSize: 10, letterSpacing: 1, color: c.brandPrimary },
+  suggestWrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  suggestChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    height: 36,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: c.border,
+    backgroundColor: c.surfaceTertiary,
+  },
+  suggestText: { fontFamily: fonts.text, fontSize: 13, color: c.onSurfaceSecondary },
   favRow: {
     flexDirection: "row",
     alignItems: "center",
