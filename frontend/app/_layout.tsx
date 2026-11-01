@@ -5,6 +5,7 @@ import { LogBox, StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 
+import { AppSplash } from "@/src/components/AppSplash";
 import { ErrorBoundary } from "@/src/components/error-boundary";
 import { ToastProvider } from "@/src/components/Toast";
 import { AuthProvider } from "@/src/lib/auth";
@@ -48,6 +49,7 @@ export default function RootLayout() {
                   <Stack.Screen name="share-savings" options={{ presentation: "modal" }} />
                   <Stack.Screen name="legal" />
                 </Stack>
+                <AppSplash />
               </ToastProvider>
             </KeyboardProvider>
             </AuthProvider>

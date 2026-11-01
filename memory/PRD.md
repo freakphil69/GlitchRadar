@@ -59,3 +59,5 @@
 ## Iteration 8
 - Schnellfilter LIEFERDIENSTE (type=delivery, Regex auf Shop/Titel/Quelle)
 - Letzte & beliebte Suchen unter dem Suchfeld (AsyncStorage, max 8)
+
+- In-App Splash (AppSplash.tsx): Logo + Radar-Puls 1,8 s, dann Fade; native Splash bleibt via expo-splash-screen
