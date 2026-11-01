@@ -50,15 +50,14 @@ export function AppSplash() {
     <Animated.View
       testID="app-splash"
       pointerEvents="none"
-      style={[StyleSheet.absoluteFill, styles.center, { backgroundColor: colors.surface, zIndex: 999 }, wrapStyle]}
+      style={[StyleSheet.absoluteFill, styles.center, { backgroundColor: "#000000", zIndex: 999 }, wrapStyle]}
     >
       <View style={styles.center}>
-        <Animated.View style={[styles.ring, { borderColor: colors.brandPrimary }, ringStyle]} />
+        <Animated.View style={[styles.ring, ringStyle]} />
         <Animated.View style={logoStyle}>
-          <Image source={require("@/assets/images/icon.png")} style={styles.logo} />
+          <Image source={require("@/assets/images/logo-full.png")} style={styles.logo} resizeMode="contain" />
         </Animated.View>
       </View>
-      <Text style={[styles.title, { color: colors.onSurface, fontFamily: fonts.displayBold }]}>GLITCHRADAR</Text>
       <Text style={[styles.sub, { color: colors.muted, fontFamily: fonts.mono }]}>SCANNE NACH PREISFEHLERN…</Text>
     </Animated.View>
   );
@@ -66,8 +65,8 @@ export function AppSplash() {
 
 const styles = StyleSheet.create({
   center: { alignItems: "center", justifyContent: "center" },
-  ring: { position: "absolute", width: 180, height: 180, borderRadius: 90, borderWidth: 2 },
-  logo: { width: 120, height: 120, borderRadius: 28 },
-  title: { fontSize: 36, letterSpacing: 4, marginTop: 32 },
-  sub: { fontSize: 11, letterSpacing: 2, marginTop: 8 },
+  // Logo brand colour (cyan→violet), kept identical in every theme.
+  ring: { position: "absolute", top: -13, width: 200, height: 200, borderRadius: 100, borderWidth: 2, borderColor: "#7B5CFF" },
+  logo: { width: 300, height: 220 },
+  sub: { fontSize: 11, letterSpacing: 2, marginTop: 16 },
 });

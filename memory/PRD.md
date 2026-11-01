@@ -61,3 +61,5 @@
 - Letzte & beliebte Suchen unter dem Suchfeld (AsyncStorage, max 8)
 
 - In-App Splash (AppSplash.tsx): Logo + Radar-Puls 1,8 s, dann Fade; native Splash bleibt via expo-splash-screen
+
+- Neues Logo (cyan→violett) als icon/adaptive-icon/favicon/splash-image + logo-full.png im In-App-Splash; Splash-Hintergrund #000000
