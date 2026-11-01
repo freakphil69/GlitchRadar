@@ -53,7 +53,7 @@ export function AppSplash() {
       style={[StyleSheet.absoluteFill, styles.center, { backgroundColor: "#000000", zIndex: 999 }, wrapStyle]}
     >
       <View style={styles.center}>
-        <Animated.View style={[styles.ring, ringStyle]} />
+        <Animated.View style={[styles.ring, { borderColor: colors.brandPrimary }, ringStyle]} />
         <Animated.View style={logoStyle}>
           <Image source={require("@/assets/images/logo-full.png")} style={styles.logo} resizeMode="contain" />
         </Animated.View>
@@ -65,8 +65,7 @@ export function AppSplash() {
 
 const styles = StyleSheet.create({
   center: { alignItems: "center", justifyContent: "center" },
-  // Logo brand colour (cyan→violet), kept identical in every theme.
-  ring: { position: "absolute", top: -13, width: 200, height: 200, borderRadius: 100, borderWidth: 2, borderColor: "#7B5CFF" },
+  ring: { position: "absolute", top: -13, width: 200, height: 200, borderRadius: 100, borderWidth: 2 },
   logo: { width: 300, height: 220 },
   sub: { fontSize: 11, letterSpacing: 2, marginTop: 16 },
 });
