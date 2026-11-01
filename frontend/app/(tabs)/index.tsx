@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import { ActivityIndicator, FlatList, Linking, Pressable, RefreshControl, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@react-native-vector-icons/material-design-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -38,16 +38,26 @@ export default function RadarScreen() {
 
   const [type, setType] = useState("all");
   const [sort, setSort] = useState("new");
+  const [search, setSearch] = useState("");
+  const [q, setQ] = useState("");
 
+  useEffect(() => {
+    const t = setTimeout(() => setQ(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
+  const searching = q.length > 0;
+
+  // Direct product search ignores the favourites filter so nothing gets hidden.
   const filters = useMemo(
     () => ({
       type,
       sort,
       minDiscount: settings.minDiscount,
-      shops: settings.favShops,
-      categories: settings.favCategories,
+      shops: searching ? [] : settings.favShops,
+      categories: searching ? [] : settings.favCategories,
+      q,
     }),
-    [type, sort, settings.minDiscount, settings.favShops, settings.favCategories],
+    [type, sort, settings.minDiscount, settings.favShops, settings.favCategories, q, searching],
   );
   const favCount = settings.favShops.length + settings.favCategories.length;
   const list = useGlitches(filters);
@@ -64,6 +74,25 @@ export default function RadarScreen() {
           lastScanAt={stats.data?.last_scan?.finished_at ?? stats.data?.last_scan?.started_at ?? null}
           onScan={() => router.push("/scout")}
         />
+        <View style={styles.searchBox}>
+          <MaterialCommunityIcons name="magnify" size={20} color={colors.muted} />
+          <TextInput
+            testID="radar-search-input"
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Produkt suchen, z. B. AirPods, PS5, Dyson"
+            placeholderTextColor={colors.muted}
+            style={styles.searchInput}
+            returnKeyType="search"
+            autoCorrect={false}
+            onSubmitEditing={() => setQ(search.trim())}
+          />
+          {search ? (
+            <Pressable testID="radar-search-clear" onPress={() => setSearch("")} hitSlop={10} style={styles.searchClear}>
+              <MaterialCommunityIcons name="close-circle" size={18} color={colors.muted} />
+            </Pressable>
+          ) : null}
+        </View>
         <ChipRow options={TYPE_CHIPS} value={type} onChange={setType} />
         <ChipRow options={SORT_CHIPS} value={sort} onChange={setSort} />
       </View>
@@ -74,7 +103,14 @@ export default function RadarScreen() {
         renderItem={({ item, index }) => <GlitchCard glitch={item} index={index} />}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         ListHeaderComponent={
+          searching ? (
+            <Text testID="radar-search-summary" style={styles.searchSummary}>
+              {list.isFetching ? "SUCHE LÄUFT…" : `${glitches.length} TREFFER FÜR „${q.toUpperCase()}“`}
+            </Text>
+          ) : (
           <View style={{ gap: spacing.md }}>
             <GlitchAlarm />
             <Pressable testID="radar-hof-banner" onPress={() => router.push("/hall-of-fame")} style={styles.hofBanner}>
@@ -99,6 +135,7 @@ export default function RadarScreen() {
               <MaterialCommunityIcons name="chevron-right" size={18} color={colors.muted} />
             </Pressable>
           </View>
+          )
         }
         refreshControl={
           <RefreshControl
@@ -121,6 +158,21 @@ export default function RadarScreen() {
               <Text style={styles.stateText}>{(list.error as Error)?.message ?? "Verbindungsproblem."}</Text>
               <Pressable testID="error-retry-button" onPress={() => list.refetch()} style={styles.stateButton}>
                 <Text style={styles.stateButtonText}>ERNEUT VERSUCHEN</Text>
+              </Pressable>
+            </View>
+          ) : searching ? (
+            <View style={styles.stateBox} testID="search-empty">
+              <MaterialCommunityIcons name="magnify-close" size={40} color={colors.muted} />
+              <Text style={styles.stateTitle}>KEIN GLITCH GEFUNDEN</Text>
+              <Text style={styles.stateText}>
+                Gerade kein aktiver Deal für „{q}“. Schau direkt in der Community nach oder versuch es später erneut.
+              </Text>
+              <Pressable
+                testID="search-mydealz-button"
+                onPress={() => Linking.openURL(`https://www.mydealz.de/search?q=${encodeURIComponent(q)}`)}
+                style={styles.stateButton}
+              >
+                <Text style={styles.stateButtonText}>BEI MYDEALZ SUCHEN</Text>
               </Pressable>
             </View>
           ) : (
@@ -167,6 +219,22 @@ const useStyles = makeStyles((c) => ({
     borderRadius: radius.md,
     padding: spacing.md,
   },
+  searchBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.sm,
+    height: 48,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: c.border,
+    backgroundColor: c.surfaceTertiary,
+    paddingHorizontal: spacing.md,
+  },
+  searchInput: { flex: 1, height: 48, color: c.onSurface, fontFamily: fonts.text, fontSize: 15 },
+  searchClear: { width: 32, height: 44, alignItems: "center", justifyContent: "center" },
+  searchSummary: { fontFamily: fonts.mono, fontSize: 11, letterSpacing: 1.5, color: c.muted },
   favRow: {
     flexDirection: "row",
     alignItems: "center",

@@ -396,9 +396,18 @@ async def image_proxy(u: str):
 
 @api_router.get("/glitches")
 async def list_glitches(type: str = "all", sort: str = "new", min_discount: int = 0,
-                        shops: str = "", categories: str = ""):
+                        shops: str = "", categories: str = "", q: str = ""):
     await _expire_stale()
     query: dict = {"status": "active"}
+    term = q.strip()[:80]
+    if term:
+        words = [re.escape(w) for w in term.split() if w][:6]
+        query["$and"] = [{"$or": [
+            {"title": {"$regex": w, "$options": "i"}},
+            {"shop": {"$regex": w, "$options": "i"}},
+            {"description": {"$regex": w, "$options": "i"}},
+            {"category": {"$regex": w, "$options": "i"}},
+        ]} for w in words]
     if type != "all":
         query["type"] = type
     if min_discount > 0:

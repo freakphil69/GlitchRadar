@@ -45,3 +45,7 @@
 - Lieblings-Shops & Kategorien (GET /api/facets, /favorites, Filter shops/categories in /api/glitches)
 - Ersparnis-Statistik im Terminal (aus gesicherten Stash-Einträgen)
 - Awin: AWIN_PUBLISHER_ID + AWIN_ADVERTISER_IDS ("zalando=1234,otto=5678") per Secrets angefragt
+
+## Iteration 6 (Juni 2026)
+- Story-Grafik teilen (/share-savings, react-native-view-shot + expo-sharing)
+- Produktsuche im Radar (q-Parameter in /api/glitches, Mehrwort-Suche, ignoriert Favoriten-Filter, mydealz-Fallback)

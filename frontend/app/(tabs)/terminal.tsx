@@ -157,10 +157,18 @@ export default function TerminalScreen() {
               Markiere gekaufte Glitches im Stash als „gesichert“, dann rechnen wir deine Ersparnis hier zusammen.
             </Text>
           )}
-          <Pressable testID="terminal-savings-stash" onPress={() => router.push("/stash")} style={styles.linkBtn} hitSlop={6}>
-            <Text style={styles.linkBtnText}>ZUM STASH</Text>
-            <MaterialCommunityIcons name="chevron-right" size={16} color={colors.brandPrimary} />
-          </Pressable>
+          <View style={styles.row}>
+            <Pressable testID="terminal-savings-stash" onPress={() => router.push("/stash")} style={styles.linkBtn} hitSlop={6}>
+              <Text style={styles.linkBtnText}>ZUM STASH</Text>
+              <MaterialCommunityIcons name="chevron-right" size={16} color={colors.brandPrimary} />
+            </Pressable>
+            {claimed.length > 0 ? (
+              <Pressable testID="terminal-savings-share" onPress={() => router.push("/share-savings")} style={[styles.linkBtn, { marginLeft: "auto" }]} hitSlop={6}>
+                <MaterialCommunityIcons name="share-variant" size={14} color={colors.brandPrimary} />
+                <Text style={styles.linkBtnText}> ALS STORY TEILEN</Text>
+              </Pressable>
+            ) : null}
+          </View>
         </View>
 
         <View style={styles.card}>

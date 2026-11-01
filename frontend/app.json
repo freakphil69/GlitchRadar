@@ -34,12 +34,26 @@
           "backgroundColor": "#0D1117"
         }
       ],
-      ["expo-font", { "fonts": ["./assets/fonts/BarlowCondensed-Regular.ttf", "./assets/fonts/BarlowCondensed-SemiBold.ttf", "./assets/fonts/BarlowCondensed-Bold.ttf", "./assets/fonts/Satoshi-Regular.ttf", "./assets/fonts/Satoshi-Medium.ttf", "./assets/fonts/Satoshi-Bold.ttf", "./assets/fonts/JetBrainsMono-Medium.ttf"] }],
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/BarlowCondensed-Regular.ttf",
+            "./assets/fonts/BarlowCondensed-SemiBold.ttf",
+            "./assets/fonts/BarlowCondensed-Bold.ttf",
+            "./assets/fonts/Satoshi-Regular.ttf",
+            "./assets/fonts/Satoshi-Medium.ttf",
+            "./assets/fonts/Satoshi-Bold.ttf",
+            "./assets/fonts/JetBrainsMono-Medium.ttf"
+          ]
+        }
+      ],
       "expo-image",
       "expo-secure-store",
       "expo-web-browser",
       "expo-status-bar",
-      "@react-native-vector-icons/material-design-icons"
+      "@react-native-vector-icons/material-design-icons",
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true

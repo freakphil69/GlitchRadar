@@ -9,6 +9,7 @@ export interface GlitchFilters {
   minDiscount: number;
   shops: string[];
   categories: string[];
+  q?: string;
 }
 
 export function useGlitches(filters: GlitchFilters) {
@@ -18,7 +19,8 @@ export function useGlitches(filters: GlitchFilters) {
       apiGet<Glitch[]>(
         `/glitches?type=${filters.type}&sort=${filters.sort}&min_discount=${filters.minDiscount}` +
           `&shops=${encodeURIComponent(filters.shops.join(","))}` +
-          `&categories=${encodeURIComponent(filters.categories.join(","))}`,
+          `&categories=${encodeURIComponent(filters.categories.join(","))}` +
+          `&q=${encodeURIComponent(filters.q ?? "")}`,
       ),
     refetchInterval: 30_000,
   });

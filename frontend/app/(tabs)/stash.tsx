@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FlatList, Pressable, Share, Text, View } from "react-native";
+import { FlatList, Pressable, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import MaterialCommunityIcons from "@react-native-vector-icons/material-design-icons";
@@ -38,19 +38,6 @@ export default function StashScreen() {
     toast(claimedNow ? "Aus gesichert zurückgesetzt" : "Als gesichert markiert — eingepreist!", "success");
   };
 
-  const onShare = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    const total = realized > 0 ? realized : potential;
-    const verb = realized > 0 ? "schon" : "gerade im Visier:";
-    try {
-      await Share.share({
-        message: `GLITCH ALARM: Ich habe mit GlitchRadar ${verb} ${fmtMoney(total)} an Preisfehlern & Gutschein-Glitches abgegriffen. Hol dir die App und sei schneller als der Patch!`,
-      });
-    } catch {
-      toast("Teilen fehlgeschlagen", "error");
-    }
-  };
-
   const onRemove = (id: string) => {
     actions.remove.mutate(id);
     toast("Aus dem Stash entfernt", "info");
@@ -82,7 +69,7 @@ export default function StashScreen() {
 
         <Pressable
           testID="stash-share-button"
-          onPress={onShare}
+          onPress={() => router.push("/share-savings")}
           disabled={items.length === 0}
           style={[styles.shareBtn, items.length === 0 && { opacity: 0.4 }]}
         >
