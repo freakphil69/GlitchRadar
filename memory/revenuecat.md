@@ -39,3 +39,5 @@ All steps are also listed in the FAQ section of the payments panel.
 Auth exists (2026-10-23): AuthProvider (src/lib/auth.tsx) calls Purchases.logIn(user.user_id) on restore/login/register and Purchases.logOut() on logout.
 
 - 2026-11-01: After DELETE+re-upsert of $rc_monthly/$rc_annual and re-running /setup, the Test Store offering still returns ONLY $rc_weekly (prices show in USD). Escalated to user; check offering "default" in dashboard.
+
+- 2026-11-02: User asked for RevenueCatUI; decided to KEEP custom orange paywall (pro.tsx). Offering now shows weekly+monthly; annual+lifetime still missing in offering "default". react-native-purchases-ui NOT installed (not needed).
