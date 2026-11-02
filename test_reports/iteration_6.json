@@ -1,0 +1,41 @@
+{
+  "summary": "Iteration 6: I tested HTML-fragment cleanup, the alarm sound toggle, the Glitch-Alarm banner, fonts and regressions. Backend: 60/60 pytest pass after one fix (new test_html_sanitize.py: 7 endpoints plus _to_text unit tests). Across all 2009 glitch documents in the database, none has '<' or an HTML entity in its title or description. The UI showed no HTML leftovers on 24 radar cards, 10 Lieferdienste cards or 3 detail pages. terminal-alarm-sound-switch is ON by default, toggling saves alarmSound to gr_settings_v1, and the value survives a reload. The glitch-alarm banner showed with a seeded price_error (seed removed afterwards), with no expo-audio console errors on web. Fonts BarlowCondensed, Satoshi and JetBrainsMono loaded and in use, no serif fallback. Search ('amazon', 62 results), the Lieferdienste chip, /favorites and /pro all work. Regression found and fixed: min_discount was ignored for type=all and type=delivery. No deprecated packages (expo-av, expo-barcode-scanner, expo-background-fetch) found.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "GET /api/glitches", "issue": "FIXED by testing agent: the Lieferdienste commit (9926019) changed `if type != 'all'` to `elif` and removed the `if min_discount > 0:` line. Since then the discount filter only applied inside the specific-type branch, so the Terminal 'Mindest-Rabatt im Radar' setting (50/70/80 %) was ignored on the 'Alle' and 'Lieferdienste' tabs. The existing test test_list_glitches_min_discount was failing because of this."},
+      {"endpoint": "feeds._parse_item", "issue": "The title is not passed through _to_text, only .strip(). An RSS title with escaped HTML (e.g. '&amp;amp;') would be stored as '&amp;' until the next backend restart, when the startup cleanup fixes it. Suggest title = _to_text(title)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Terminal", "issues": ["terminal-alarm-sound-switch is only 40x20 px on web, below the 44pt touch target, and the row itself is not pressable. Consider making the whole row toggle it."]}
+    ],
+    "react_native_issues": [
+      {"component": "AppSplash pointerEvents prop", "issue": "Console warning 'props.pointerEvents is deprecated. Use style.pointerEvents'. Reference: /app/frontend/src/components/AppSplash.tsx:52"}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_html_sanitize.py", "/app/backend/tests/seed_alarm_ui.py", "/app/test_reports/pytest/pytest_results_iter6.xml"],
+  "action_items": [
+    "Review the restored min_discount filter in server.py list_glitches. It now applies to all types, including 'all' and 'delivery'.",
+    "In feeds._parse_item, run the title through _to_text so newly polled items are clean without waiting for a restart.",
+    "Remove the duplicated HTML cleanup loop in server.py startup (lines ~762-776: two nearly identical loops).",
+    "AppSplash: move pointerEvents='none' into style to silence the deprecation warning.",
+    "Optional: make the Alarm-Ton row pressable to enlarge the touch target."
+  ],
+  "critical_code_review_comments": [
+    "server.py startup has two copy-pasted cleanup loops (DRY). The second regex '[<>]' also matches legitimate '>' text every startup (harmless but wasteful).",
+    "feeds._to_text truncation: description[:600] is cut after cleaning, which can end mid-word without ' …'. Minor.",
+    "GlitchAlarm: on the first app load every currently active alarm id counts as 'fresh' and triggers the ping, which is expected. Seen ids are capped at 200.",
+    "server.py is 785 lines (over 700). Consider splitting the routers."
+  ],
+  "updated_files": ["/app/backend/server.py (restored `if min_discount > 0:` in list_glitches)", "/app/backend/tests/test_html_sanitize.py (new)", "/app/backend/tests/seed_alarm_ui.py (new helper)"],
+  "success_rate": {"backend": "100% (60/60 after fix)", "frontend": "100%"},
+  "seed_data_creation": "Temporary price_error glitch with source_url https://www.mydealz.de/TEST_alarm_ui_iter6, inserted via seed_alarm_ui.py and deleted after the UI test.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Use `python /app/backend/tests/seed_alarm_ui.py seed|clean` to force a Glitch-Alarm banner. pytest.ini uses xdist (-n), so do not pass -p no:xdist. Audio playback itself was not verified (blocked by browser autoplay); only the absence of errors was checked.",
+  "rca_of_issue": "min_discount regression: git log -L showed commit 9926019 turned `if type != 'all'` into `elif` and deleted the separate `if min_discount > 0:` line, which moved the discount filter into the type branch."
+}

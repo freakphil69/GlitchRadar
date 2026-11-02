@@ -1,13 +1,19 @@
-import { useEffect } from "react";
-import { Pressable, Text, View } from "react-native";
+import { useEffect, useRef } from "react";
+import { Platform, Pressable, Text, View } from "react-native";
 import { useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useAudioPlayer } from "expo-audio";
+import * as Haptics from "expo-haptics";
 import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import MaterialCommunityIcons from "@react-native-vector-icons/material-design-icons";
 
 import { Countdown } from "@/src/components/Countdown";
 import { fmtPrice } from "@/src/lib/format";
 import { useAlarm } from "@/src/lib/queries";
+import { useSettings } from "@/src/lib/settings";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
+
+const SEEN_KEY = "glitchradar.alarmSeen";
 
 // Loud banner for glitches that live less than 15 minutes (expiring or brand-new price errors).
 export function GlitchAlarm() {
@@ -15,9 +21,40 @@ export function GlitchAlarm() {
   const { colors } = useTheme();
   const styles = useStyles();
   const alarm = useAlarm();
+  const settings = useSettings();
   const glow = useSharedValue(1);
+  const player = useAudioPlayer(require("@/assets/sounds/radar-ping.wav"));
+  const seen = useRef<Set<string> | null>(null);
 
   const items = alarm.data ?? [];
+
+  // Ping + vibrate only for alarm ids we have never announced before (remembered across app starts).
+  useEffect(() => {
+    if (!alarm.data) return;
+    let cancelled = false;
+    (async () => {
+      if (!seen.current) {
+        const raw = await AsyncStorage.getItem(SEEN_KEY).catch(() => null);
+        seen.current = new Set(raw ? (JSON.parse(raw) as string[]) : []);
+      }
+      if (cancelled) return;
+      const fresh = alarm.data.filter((g) => !seen.current!.has(g.id));
+      if (fresh.length === 0) return;
+      fresh.forEach((g) => seen.current!.add(g.id));
+      AsyncStorage.setItem(SEEN_KEY, JSON.stringify([...seen.current].slice(-200))).catch(() => {});
+      if (!settings.alarmSound) return;
+      try {
+        player.seekTo(0);
+        player.play();
+      } catch {
+        // Audio can be blocked (e.g. browser autoplay rules) – the visual alarm still shows.
+      }
+      if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [alarm.data, settings.alarmSound, player]);
 
   useEffect(() => {
     glow.value = withRepeat(withTiming(0.45, { duration: 700 }), -1, true);

@@ -21,7 +21,7 @@ from emergentintegrations.llm.chat import LlmChat, UserMessage
 from urllib.parse import quote
 
 from auth import ensure_auth_indexes, make_auth
-from feeds import FEEDS, fetch_all_feeds
+from feeds import FEEDS, _to_text, fetch_all_feeds
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -416,6 +416,7 @@ async def list_glitches(type: str = "all", sort: str = "new", min_discount: int 
         ]})
     elif type != "all":
         query["type"] = type
+    if min_discount > 0:
         query["discount_pct"] = {"$gte": min_discount}
     shop_list = [s.strip() for s in shops.split(",") if s.strip()][:50]
     cat_list = [c.strip() for c in categories.split(",") if c.strip()][:50]
@@ -759,6 +760,14 @@ async def startup():
     if removed.deleted_count:
         logger.info(f"{removed.deleted_count} simulierte Funde entfernt")
     await db.glitches.create_index("source_url", unique=True)
+    # Clean leftover HTML fragments ("<str...", "<a href=") from older finds.
+    async for d in db.glitches.find({"$or": [{"description": {"$regex": "[<>]|&[a-z]+;"}},
+                                             {"title": {"$regex": "[<>]|&[a-z]+;"}}]},
+                                    {"description": 1, "title": 1}):
+        await db.glitches.update_one({"_id": d["_id"]}, {"$set": {
+            "description": _to_text(d.get("description", "")),
+            "title": _to_text(d.get("title", "")),
+        }})
     await db.scans.update_many({"status": "running"}, {"$set": {"status": "failed", "error": "Server-Neustart"}})
     await ensure_auth_indexes(db)
     await db.glitches.create_index([("status", 1), ("published_at", -1)])

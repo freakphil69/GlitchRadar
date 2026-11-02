@@ -1,4 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
+import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { LogBox, StyleSheet } from "react-native";
@@ -26,6 +27,16 @@ try {
 
 export default function RootLayout() {
   const { colors } = useTheme();
+  // Config plugin embeds fonts in native builds; this also loads them in Expo Go and on web.
+  useFonts({
+    "BarlowCondensed-Regular": require("@/assets/fonts/BarlowCondensed-Regular.ttf"),
+    "BarlowCondensed-SemiBold": require("@/assets/fonts/BarlowCondensed-SemiBold.ttf"),
+    "BarlowCondensed-Bold": require("@/assets/fonts/BarlowCondensed-Bold.ttf"),
+    "Satoshi-Regular": require("@/assets/fonts/Satoshi-Regular.ttf"),
+    "Satoshi-Medium": require("@/assets/fonts/Satoshi-Medium.ttf"),
+    "Satoshi-Bold": require("@/assets/fonts/Satoshi-Bold.ttf"),
+    "JetBrainsMono-Medium": require("@/assets/fonts/JetBrainsMono-Medium.ttf"),
+  });
   // One app level ErrorBoundary; a render crash shows a reload screen
   // instead of a blank app. GestureHandlerRootView must wrap the whole tree
   // or any gesture/swipe/drawer screen crashes in Expo Go.

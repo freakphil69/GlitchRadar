@@ -53,7 +53,13 @@
       "expo-web-browser",
       "expo-status-bar",
       "@react-native-vector-icons/material-design-icons",
-      "expo-sharing"
+      "expo-sharing",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

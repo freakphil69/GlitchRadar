@@ -67,3 +67,9 @@
 - Logo auf App-Orange umgefärbt (amber→#FF5722), alle Icons/Splash neu generiert aus /tmp/logo.jpg
 
 - Logo v3: Glitch-Kreis (minimal_set2_glitch.png) orange umgefärbt + GLITCHRADAR-Schriftzug, in icon/adaptive/favicon/splash/logo-full
+
+## Iteration 9
+- Beschreibungen: _to_text unescape+partial-tag-strip, Startup-Migration bereinigt Altbestand
+- Alarm-Ton: assets/sounds/radar-ping.wav (expo-audio) + Haptik, nur für neue Alarm-IDs (AsyncStorage glitchradar.alarmSeen), Schalter im Terminal (settings.alarmSound)
+- Fonts via useFonts im Root-Layout (Expo Go + Web)
+- Store-Bilder: scripts/store_capture.py + store_compose.py -> /app/store, Download /glitchradar-store-bilder.zip

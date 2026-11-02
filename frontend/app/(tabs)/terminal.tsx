@@ -1,4 +1,4 @@
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Pressable, ScrollView, Switch, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@react-native-vector-icons/material-design-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -196,6 +196,24 @@ export default function TerminalScreen() {
             value={String(settings.minDiscount)}
             onChange={(k) => update.mutate({ minDiscount: Number(k) })}
           />
+          <View style={styles.divider} />
+          <Pressable
+            testID="terminal-alarm-sound-row"
+            onPress={() => update.mutate({ alarmSound: !settings.alarmSound })}
+            style={[styles.row, { minHeight: 48 }]}
+          >
+            <MaterialCommunityIcons name="volume-high" size={22} color={colors.brandPrimary} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.rowTitle}>Alarm-Ton & Vibration</Text>
+              <Text style={styles.rowText}>Radar-Ping, sobald ein neuer Glitch-Alarm erscheint.</Text>
+            </View>
+            <Switch
+              testID="terminal-alarm-sound-switch"
+              value={settings.alarmSound}
+              onValueChange={(v) => update.mutate({ alarmSound: v })}
+              trackColor={{ true: colors.brandPrimary, false: colors.border }}
+            />
+          </Pressable>
         </View>
 
         <Text style={styles.sectionTitle}>QUELLEN & MODELLE</Text>

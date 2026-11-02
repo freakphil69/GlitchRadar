@@ -51,8 +51,20 @@ TAG_RE = re.compile(r"<[^>]+>")
 WS_RE = re.compile(r"\s+")
 
 
+PARTIAL_TAG_RE = re.compile(r"<[^>]*$")
+
+
 def _to_text(raw: str) -> str:
-    return WS_RE.sub(" ", html.unescape(TAG_RE.sub(" ", raw or ""))).strip()
+    # Feeds sometimes double-escape HTML and cut it mid-tag ("<str..."), so unescape first,
+    # strip complete tags, then drop any dangling partial tag at the end.
+    text = html.unescape(html.unescape(raw or ""))
+    text = TAG_RE.sub(" ", text)
+    cut = PARTIAL_TAG_RE.search(text)
+    text = PARTIAL_TAG_RE.sub("", text)
+    text = WS_RE.sub(" ", text).strip()
+    if cut and text and not text.endswith(("…", ".", "!", "?")):
+        text += " …"
+    return re.sub(r"\s*(\.\.\.|…)$", "…", text) if text.endswith(("...", "…")) else text
 
 
 def _price(v: Optional[str]) -> Optional[float]:
@@ -83,7 +95,7 @@ def _classify(default_type: Optional[str], text: str) -> str:
 
 
 def _parse_item(it: ET.Element, source: str, label: str, default_type: Optional[str]) -> Optional[dict]:
-    title = (it.findtext("title") or "").strip()
+    title = _to_text(it.findtext("title") or "")
     link = (it.findtext("link") or "").strip()
     if not title or not link or "top-deal-des-tages" in link:
         return None

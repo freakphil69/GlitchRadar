@@ -49,8 +49,7 @@ export function AppSplash() {
   return (
     <Animated.View
       testID="app-splash"
-      pointerEvents="none"
-      style={[StyleSheet.absoluteFill, styles.center, { backgroundColor: "#000000", zIndex: 999 }, wrapStyle]}
+      style={[StyleSheet.absoluteFill, styles.center, { backgroundColor: "#000000", zIndex: 999, pointerEvents: "none" }, wrapStyle]}
     >
       <View style={styles.center}>
         <Animated.View style={[styles.ring, { borderColor: colors.brandPrimary }, ringStyle]} />

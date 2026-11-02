@@ -8,6 +8,7 @@ export interface Settings {
   minDiscount: number;
   favShops: string[];
   favCategories: string[];
+  alarmSound: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -16,6 +17,7 @@ export const DEFAULT_SETTINGS: Settings = {
   minDiscount: 0,
   favShops: [],
   favCategories: [],
+  alarmSound: true,
 };
 
 const KEY = "gr_settings_v1";
