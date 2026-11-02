@@ -65,3 +65,5 @@
 - Neues Logo (cyan→violett) als icon/adaptive-icon/favicon/splash-image + logo-full.png im In-App-Splash; Splash-Hintergrund #000000
 
 - Logo auf App-Orange umgefärbt (amber→#FF5722), alle Icons/Splash neu generiert aus /tmp/logo.jpg
+
+- Logo v3: Glitch-Kreis (minimal_set2_glitch.png) orange umgefärbt + GLITCHRADAR-Schriftzug, in icon/adaptive/favicon/splash/logo-full

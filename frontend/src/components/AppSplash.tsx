@@ -66,6 +66,6 @@ export function AppSplash() {
 const styles = StyleSheet.create({
   center: { alignItems: "center", justifyContent: "center" },
   ring: { position: "absolute", top: -13, width: 200, height: 200, borderRadius: 100, borderWidth: 2 },
-  logo: { width: 300, height: 220 },
+  logo: { width: 260, height: 226 },
   sub: { fontSize: 11, letterSpacing: 2, marginTop: 16 },
 });
