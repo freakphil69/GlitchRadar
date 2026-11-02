@@ -14,6 +14,8 @@ export interface Glitch {
   currency: string;
   discount_pct: number;
   coupon_code: string | null;
+  min_order?: number | null;
+  valid_until?: string | null;
   url: string | null;
   affiliate_url: string | null;
   image_url: string | null;

@@ -212,6 +212,28 @@ def _discount_pct(original: float, glitched: float) -> int:
     return max(0, min(100, round((1 - glitched / original) * 100)))
 
 
+MIN_ORDER_RE = re.compile(
+    r"(?:MBW|Mindestbestellwert|Mindestbestellung|Mindesteinkauf(?:swert)?|Mindestumsatz)\s*(?:von|:|ab)?\s*(\d{1,3}(?:[.,]\d{1,2})?)\s*(?:€|Euro|EUR)"
+    r"|ab\s*(\d{1,3}(?:[.,]\d{1,2})?)\s*(?:€|Euro|EUR)\s*(?:Bestellwert|Einkaufswert|Mindestbestellwert)",
+    re.I,
+)
+VALID_RE = re.compile(
+    r"(?:gültig|einlösbar|gilt|Aktionszeitraum|Zeitraum|läuft)[^.\n]{0,40}?bis\s*(?:zum\s*|einschließlich\s*)?(\d{1,2}\.\s?\d{1,2}\.(?:\s?\d{2,4})?)",
+    re.I,
+)
+
+
+def coupon_terms(text: str) -> dict:
+    """Pull minimum order value and validity date out of a deal text."""
+    min_order = None
+    m = MIN_ORDER_RE.search(text or "")
+    if m:
+        min_order = float((m.group(1) or m.group(2)).replace(",", "."))
+    v = VALID_RE.search(text or "")
+    return {"min_order": min_order, "valid_until": re.sub(r"\s", "", v.group(1)) if v else None}
+
+
+
 # ---------------------------------------------------------------------------
 # Models
 # ---------------------------------------------------------------------------
@@ -262,6 +284,7 @@ class GlitchDoc(BaseDocument):
             base, aff = build_affiliate_link(self.shop)
             d["url"] = d.get("url") or base
             d["affiliate_url"] = d.get("affiliate_url") or aff
+        d.update(coupon_terms(f"{self.title} {self.description}"))
         return d
 
 

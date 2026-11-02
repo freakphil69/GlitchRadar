@@ -84,6 +84,23 @@ export function GlitchCard({ glitch, index = 0 }: { glitch: Glitch; index?: numb
           </View>
         ) : null}
 
+        {glitch.min_order != null || glitch.valid_until ? (
+          <View style={styles.termsRow} testID={`glitch-terms-${glitch.id}`}>
+            {glitch.min_order != null ? (
+              <View style={styles.termBox}>
+                <Text style={styles.termLabel}>MINDESTBESTELLWERT</Text>
+                <Text style={styles.termValue}>{fmtMoney(glitch.min_order)}</Text>
+              </View>
+            ) : null}
+            {glitch.valid_until ? (
+              <View style={styles.termBox}>
+                <Text style={styles.termLabel}>GÜLTIG BIS</Text>
+                <Text style={styles.termValue}>{glitch.valid_until}</Text>
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+
         <Text style={styles.sourceLine} numberOfLines={1}>
           QUELLE · {glitch.source_label}
         </Text>
@@ -141,6 +158,18 @@ const useStyles = makeStyles((c) => ({
     borderRadius: radius.sm,
     backgroundColor: c.surfaceTertiary,
   },
+  termsRow: { flexDirection: "row", gap: spacing.sm },
+  termBox: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: c.brandPrimary,
+    borderRadius: radius.sm,
+    backgroundColor: c.brandTertiary,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+  },
+  termLabel: { fontFamily: fonts.mono, fontSize: 9, letterSpacing: 1.2, color: c.onBrandTertiary },
+  termValue: { fontFamily: fonts.displayBold, fontSize: 24, color: c.onSurface, marginTop: 2 },
   temp: {
     fontFamily: fonts.mono,
     fontSize: 11,

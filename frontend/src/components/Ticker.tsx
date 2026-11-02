@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Image, Pressable, Text, View } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -33,6 +33,12 @@ export function Ticker({
 
   return (
     <View testID="ticker" style={styles.ticker}>
+      <Image
+        testID="ticker-logo"
+        source={require("@/assets/images/logo-mark.png")}
+        style={styles.logo}
+        accessibilityLabel="GlitchRadar"
+      />
       <View style={styles.cell}>
         <Animated.View style={[styles.dot, dot]} />
         <Text style={[styles.cellText, { color: colors.success }]}>LIVE</Text>
@@ -69,6 +75,7 @@ const useStyles = makeStyles((c) => ({
     borderBottomColor: c.border,
     backgroundColor: c.surface,
   },
+  logo: { width: 22, height: 22 },
   cell: {
     flexDirection: "row",
     alignItems: "center",

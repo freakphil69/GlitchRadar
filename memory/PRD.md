@@ -73,3 +73,7 @@
 - Alarm-Ton: assets/sounds/radar-ping.wav (expo-audio) + Haptik, nur für neue Alarm-IDs (AsyncStorage glitchradar.alarmSeen), Schalter im Terminal (settings.alarmSound)
 - Fonts via useFonts im Root-Layout (Expo Go + Web)
 - Store-Bilder: scripts/store_capture.py + store_compose.py -> /app/store, Download /glitchradar-store-bilder.zip
+
+## Iteration 10
+- coupon_terms(): min_order + valid_until aus Text (GlitchDoc.out), große MBW/GÜLTIG-BIS-Boxen in GlitchCard
+- Kleines Logo (logo-mark.png) im Ticker oben im Radar
