@@ -7,7 +7,7 @@ import type { PurchasesPackage } from "react-native-purchases";
 
 import { useToast } from "@/src/components/Toast";
 import { useAuth } from "@/src/lib/auth";
-import { isTestStore, useSubscription } from "@/src/lib/revenuecat";
+import { isTestStore, TRIAL_DAYS, trialLeftText, useSubscription } from "@/src/lib/revenuecat";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
 const PERKS = [
@@ -23,14 +23,13 @@ const PLAN_META: Record<string, { label: string; per: string; cta: string }> = {
   WEEKLY: { label: "Wöchentlich", per: "/ Woche", cta: "Wöchentlich sichern" },
   MONTHLY: { label: "Monatlich", per: "/ Monat", cta: "Monatlich sichern" },
   ANNUAL: { label: "Jährlich", per: "/ Jahr", cta: "Jährlich sichern" },
-  LIFETIME: { label: "Lifetime", per: "einmalig", cta: "Lifetime sichern" },
 };
 
 function perMonth(pkg: PurchasesPackage): string | null {
   const p = pkg.product;
   if (p.pricePerMonthString) return p.pricePerMonthString;
   if (!p.price) return null;
-  return `${(p.price / 12).toFixed(2).replace(".", ",")} €`;
+  return new Intl.NumberFormat("de-DE", { style: "currency", currency: p.currencyCode || "EUR" }).format(p.price / 12);
 }
 
 export default function ProScreen() {
@@ -44,11 +43,17 @@ export default function ProScreen() {
   const [confirm, setConfirm] = useState<PurchasesPackage | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const packages = useMemo(() => sub.offerings?.current?.availablePackages ?? [], [sub.offerings]);
+  // Only weekly / monthly / annual are offered.
+  const packages = useMemo(
+    () =>
+      (sub.offerings?.current?.availablePackages ?? []).filter((p) =>
+        (CARD_ORDER as readonly string[]).includes(p.packageType),
+      ),
+    [sub.offerings],
+  );
   const cards = CARD_ORDER.map((t) => packages.find((p) => p.packageType === t)).filter(
     (p): p is PurchasesPackage => !!p,
   );
-  const extras = packages.filter((p) => !cards.includes(p));
 
   useEffect(() => {
     if (selectedId || packages.length === 0) return;
@@ -166,25 +171,15 @@ export default function ProScreen() {
               })}
             </View>
 
-            {extras.map((pkg) => {
-              const on = pkg.identifier === selectedId;
-              const m = metaOf(pkg);
-              return (
-                <Pressable
-                  key={pkg.identifier}
-                  testID={`pro-plan-${pkg.packageType.toLowerCase()}`}
-                  onPress={() => setSelectedId(pkg.identifier)}
-                  style={[styles.extraCard, on && styles.planCardOn]}
-                >
-                  <MaterialCommunityIcons name="infinity" size={22} color={colors.brandPrimary} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.planLabel}>{m.label}</Text>
-                    <Text style={styles.planPer}>Einmal zahlen, für immer PRO</Text>
-                  </View>
-                  <Text style={styles.extraPrice}>{pkg.product.priceString}</Text>
-                </Pressable>
-              );
-            })}
+            {sub.trialActive && sub.trialEndsAt ? (
+              <View style={styles.banner} testID="pro-trial-banner">
+                <MaterialCommunityIcons name="gift" size={18} color={colors.brandPrimary} />
+                <Text style={styles.bannerText}>
+                  Deine {TRIAL_DAYS}-Tage-Testphase läuft – {trialLeftText(sub.trialEndsAt)}. Sichere dir PRO, damit es danach
+                  ohne Limit weitergeht.
+                </Text>
+              </View>
+            ) : null}
 
             {!auth.user ? (
               <View style={styles.banner} testID="pro-login-banner">
@@ -219,11 +214,7 @@ export default function ProScreen() {
                 </Text>
               )}
             </Pressable>
-            <Text style={styles.note}>
-              {selected?.packageType === "LIFETIME"
-                ? "Einmalige Zahlung. Kein Abo."
-                : "Jederzeit kündbar. Automatische Verlängerung."}
-            </Text>
+            <Text style={styles.note}>Jederzeit kündbar. Automatische Verlängerung.</Text>
             <Pressable testID="pro-restore-button" onPress={onRestore} disabled={sub.isRestoring} style={styles.linkBtn}>
               <Text style={styles.linkText}>{sub.isRestoring ? "Stelle wieder her…" : "Käufe wiederherstellen"}</Text>
             </Pressable>
@@ -334,17 +325,6 @@ const useStyles = makeStyles((c) => ({
   planPrice: { fontFamily: fonts.displayBold, fontSize: 26, color: c.onSurface },
   planPer: { fontFamily: fonts.textRegular, fontSize: 12, color: c.onSurfaceTertiary },
   planPerHighlight: { fontFamily: fonts.text, fontSize: 11, color: c.brandPrimary, textAlign: "center" },
-  extraCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    padding: spacing.md,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: c.border,
-    backgroundColor: c.surfaceSecondary,
-  },
-  extraPrice: { fontFamily: fonts.displayBold, fontSize: 22, color: c.onSurface },
   banner: {
     flexDirection: "row",
     gap: spacing.sm,

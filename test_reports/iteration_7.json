@@ -1,0 +1,32 @@
+{
+  "summary": "Iteration 7 (frontend only, 390x844): tested the 3-day PRO trial, the annual plan and the removed Lifetime option. All requested checks pass. Fresh storage creates the glitchradar.proTrialEndsAt key (now+72h); it stays the same after reload. terminal-plan-banner shows 'PRO-Testphase', badge 'TEST' and '3 Tage gratis – noch 2 T 23 Std. Danach PRO sichern.'. scout-quota shows 'PRO-TESTPHASE · UNBEGRENZTE SCANS' and the button reads 'JETZT SCANNEN'. Expired trial (key='1000'): 'Free-Plan', badge 'FREE', 'Testphase vorbei – …', scout-quota '3 VON 3 GRATIS-SCANS HEUTE ÜBRIG', and pro-trial-banner is hidden. /pro: pro-trial-banner shows while the trial is active; pro-plan-weekly ($2.99), pro-plan-annual ($49.99, 'Empfohlen', 'Nur $4.16 / Monat', selected by default) and pro-plan-monthly ($7.99) are all visible; pro-plan-lifetime does not exist and no Lifetime text appears. Tapping a card updates the buy button text. Radar loads and pro-buy-button is visible. CRITICAL bug found: logged-in users can never buy (details in rca_of_issue). No deprecated packages (expo-av, expo-barcode-scanner, expo-background-fetch).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Logged-in purchase (RevenueCat identity)",
+        "issue": "After login, Purchases.logIn(user_id) succeeds (POST /v1/subscribers/identify returns 200, then customer info for user_192cda0ce442 loads), but pro-identity-banner stays on 'Verknüpfe Konto mit dem Store…' and pro-buy-button stays disabled (aria-disabled=true), both after in-app navigation and after a reload. identityReady (revenuecat.tsx:109-110) checks customerInfo.originalAppUserId. RevenueCat keeps original_app_user_id as the first-seen anonymous ID when identify merges an anonymous user. Verified via the REST API: user_192cda0ce442 has original_app_user_id='$RCAnonymousID:efb471c4…'. The purchase guard (revenuecat.tsx:84-85) uses the same check, so the purchase would throw identity_not_ready anyway.",
+        "affected_testIDs": ["pro-buy-button", "pro-identity-banner", "pro-confirm-modal"]
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [
+    "CRITICAL: In /app/frontend/src/lib/revenuecat.tsx, stop using customerInfo.originalAppUserId for identityReady (line 109-110) and for the purchase guard (line 84-85). Use the current app user ID instead, e.g. `await Purchases.getAppUserID()` / `await Purchases.isAnonymous()` (store it in state or a query that is invalidated after logIn/logOut), or compare it with auth user.user_id. Then retest: login, open /pro, the buy button is enabled, pro-confirm-modal opens."
+  ],
+  "critical_code_review_comments": [
+    "revenuecat.tsx: the trial is device-local (AsyncStorage). Reinstalling the app or clearing storage restarts it, and the scan quota is also client-side only (scout.tsx), so the server does not enforce any limits. Acceptable for an MVP, but note it.",
+    "revenuecat.tsx:106: while trialQuery is loading, trialEndsAt is null, so Free-Plan / 'Testphase vorbei' can flash briefly on first render. Consider showing a neutral state while trialQuery.isLoading.",
+    "pro.tsx perMonth fallback hardcodes ' €' even though the store currency can be USD; minor (pricePerMonthString is used when available)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A", "frontend": "90% (all requested trial/plan checks pass; logged-in purchase is blocked)"},
+  "seed_data_creation": "None. Used the existing tester@glitchradar.app account; no purchases were made.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Trial key glitchradar.proTrialEndsAt is in localStorage. Set it to '1000' to simulate an expired trial. RevenueCat Test Store offerings: weekly $2.99, monthly $7.99, annual $49.99 (now visible). The RC subscriber for tester@glitchradar.app is user_192cda0ce442, whose original_app_user_id is anonymous.",
+  "rca_of_issue": "Reproduce: log in as tester@glitchradar.app, open /pro, wait 30s: the identity banner stays and the buy button is disabled. Network: identify 200, GET subscribers/user_192cda0ce442 200. Root cause: identityReady and the purchase guard rely on originalAppUserId, which RevenueCat keeps as the first-seen anonymous ID after an identify merge. This affects essentially every user who opened the app before logging in. Mitigation: check the current appUserID / isAnonymous() instead."
+}

@@ -18,7 +18,7 @@ SLIDES = [
     ("delivery", "LIEFERDIENST-CODES", "MIT EINEM TIPP", "Lieferando, Uber Eats, Wolt & mehr"),
     ("detail", "JEDER DEAL", "MIT QUELLE GEPRÜFT", "KI-Trefferquote + Original-Beitrag zum Nachprüfen"),
     ("search", "SUCH DIREKT,", "WAS DU WILLST", "PS5, AirPods, Lego – sofort alle aktiven Deals"),
-    ("pro", "PRO: UNBEGRENZT", "SCANNEN & SPAREN", "Woche, Monat, Jahr oder Lifetime"),
+    ("pro", "PRO: UNBEGRENZT", "SCANNEN & SPAREN", "Woche, Monat oder Jahr – jederzeit kündbar"),
 ]
 
 SIZES = {"playstore": (1080, 1920), "appstore": (1290, 2796)}

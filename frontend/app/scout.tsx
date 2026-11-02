@@ -32,7 +32,7 @@ export default function ScoutScreen() {
   const scan = useScan();
   const scans = useRecentScans();
   const stats = useStats();
-  const { isSubscribed } = useSubscription();
+  const { isPro, trialActive } = useSubscription();
   const [used, setUsed] = useState(0);
   const [log, setLog] = useState<string[]>(["SCOUT BEREIT — SERVER SCANNT ZUSÄTZLICH ALLE 10 MIN AUTOMATISCH."]);
 
@@ -40,7 +40,7 @@ export default function ScoutScreen() {
     scansUsedToday().then(setUsed);
   }, []);
 
-  const left = isSubscribed ? Infinity : Math.max(0, FREE_SCANS_PER_DAY - used);
+  const left = isPro ? Infinity : Math.max(0, FREE_SCANS_PER_DAY - used);
 
   useEffect(() => {
     if (!scan.isPending) return;
@@ -104,7 +104,11 @@ export default function ScoutScreen() {
           </Text>
         </Pressable>
         <Text testID="scout-quota" style={styles.quota}>
-          {isSubscribed ? "PRO · UNBEGRENZTE SCANS" : `${left} VON ${FREE_SCANS_PER_DAY} GRATIS-SCANS HEUTE ÜBRIG`}
+          {isPro
+            ? trialActive
+              ? "PRO-TESTPHASE · UNBEGRENZTE SCANS"
+              : "PRO · UNBEGRENZTE SCANS"
+            : `${left} VON ${FREE_SCANS_PER_DAY} GRATIS-SCANS HEUTE ÜBRIG`}
         </Text>
 
         <View style={styles.statsRow}>

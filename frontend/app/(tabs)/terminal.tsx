@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChipRow } from "@/src/components/ChipRow";
 import { useToast } from "@/src/components/Toast";
 import { useAuth } from "@/src/lib/auth";
-import { useSubscription } from "@/src/lib/revenuecat";
+import { TRIAL_DAYS, trialLeftText, useSubscription } from "@/src/lib/revenuecat";
 import { fmtMoney } from "@/src/lib/format";
 import { useStash, useStashActions } from "@/src/lib/stash";
 import { savingOf } from "@/src/lib/types";
@@ -37,7 +37,7 @@ export default function TerminalScreen() {
   const update = useUpdateSettings();
   const stashActions = useStashActions();
   const stash = useStash();
-  const { isSubscribed } = useSubscription();
+  const { isSubscribed, isPro, trialActive, trialEndsAt } = useSubscription();
   const auth = useAuth();
   const bottomChrome = usesNativeTabs ? insets.bottom : 0;
 
@@ -109,18 +109,22 @@ export default function TerminalScreen() {
           <View style={styles.divider} />
           <Pressable testID="terminal-plan-banner" onPress={() => router.push("/pro")} style={styles.row}>
             <MaterialCommunityIcons
-              name={isSubscribed ? "crown" : "crown-outline"}
+              name={isPro ? "crown" : "crown-outline"}
               size={22}
-              color={isSubscribed ? colors.success : colors.muted}
+              color={isPro ? colors.success : colors.muted}
             />
             <View style={{ flex: 1 }}>
-              <Text style={styles.rowTitle}>{isSubscribed ? "PRO aktiv" : "Free-Plan"}</Text>
-              <Text style={styles.rowText} numberOfLines={2}>
+              <Text style={styles.rowTitle}>
+                {isSubscribed ? "PRO aktiv" : trialActive ? "PRO-Testphase" : "Free-Plan"}
+              </Text>
+              <Text style={styles.rowText} numberOfLines={2} testID="terminal-plan-text">
                 {isSubscribed
                   ? auth.user
                     ? `An dein Konto gebunden: ${auth.user.email}`
                     : "Auf diesem Gerät aktiv – melde dich an, um PRO überall zu nutzen"
-                  : "Begrenzte Scans pro Tag – PRO schaltet alles frei"}
+                  : trialActive && trialEndsAt
+                    ? `${TRIAL_DAYS} Tage gratis – ${trialLeftText(trialEndsAt)}. Danach PRO sichern.`
+                    : "Testphase vorbei – begrenzte Scans pro Tag. PRO schaltet alles frei"}
               </Text>
               {auth.identityError ? (
                 <Text testID="terminal-identity-error" style={styles.errorText} numberOfLines={2}>
@@ -128,7 +132,9 @@ export default function TerminalScreen() {
                 </Text>
               ) : null}
             </View>
-            <Text style={[styles.planBadge, isSubscribed && styles.planBadgePro]}>{isSubscribed ? "PRO" : "FREE"}</Text>
+            <Text style={[styles.planBadge, isPro && styles.planBadgePro]}>
+              {isSubscribed ? "PRO" : trialActive ? "TEST" : "FREE"}
+            </Text>
           </Pressable>
         </View>
 

@@ -77,3 +77,7 @@
 ## Iteration 10
 - coupon_terms(): min_order + valid_until aus Text (GlitchDoc.out), große MBW/GÜLTIG-BIS-Boxen in GlitchCard
 - Kleines Logo (logo-mark.png) im Ticker oben im Radar
+
+## Iteration 11
+- 3-Tage-PRO-Testphase (geräte-basiert, AsyncStorage glitchradar.proTrialEndsAt, Start beim ersten App-Start); isPro = Abo || Testphase; Anzeige in Terminal/Scout/Paywall
+- Lifetime entfernt (Paywall + Proxy DELETE); $rc_annual nach stale-id neu angelegt
