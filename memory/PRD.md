@@ -81,3 +81,9 @@
 ## Iteration 11
 - 3-Tage-PRO-Testphase (geräte-basiert, AsyncStorage glitchradar.proTrialEndsAt, Start beim ersten App-Start); isPro = Abo || Testphase; Anzeige in Terminal/Scout/Paywall
 - Lifetime entfernt (Paywall + Proxy DELETE); $rc_annual nach stale-id neu angelegt
+
+## Iteration 12
+- Ablauf-Warnung: src/lib/expiry.ts (valid_until/expires_at heute/morgen) -> roter Rahmen + „LÄUFT HEUTE/MORGEN AB“ in GlitchCard
+- TrialEndBanner im Radar am letzten Testtag (Jahres-Ersparnis vs. monatlich, wegklickbar)
+- Store-Texte: /app/memory/STORE_LISTING.md (auch im ZIP)
+- Store-Bilder neu (Paywall mit EUR-Preisen), ZIP unter /glitchradar-store-bilder.zip

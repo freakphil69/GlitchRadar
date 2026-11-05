@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ChipRow } from "@/src/components/ChipRow";
 import { GlitchAlarm } from "@/src/components/GlitchAlarm";
+import { TrialEndBanner } from "@/src/components/TrialEndBanner";
 import { GlitchCard } from "@/src/components/GlitchCard";
 import { POPULAR_SEARCHES, useRecentSearches } from "@/src/lib/recentSearches";
 import { Ticker } from "@/src/components/Ticker";
@@ -167,6 +168,7 @@ export default function RadarScreen() {
             </Text>
           ) : (
           <View style={{ gap: spacing.md }}>
+            <TrialEndBanner />
             <GlitchAlarm />
             <Pressable testID="radar-hof-banner" onPress={() => router.push("/hall-of-fame")} style={styles.hofBanner}>
               <MaterialCommunityIcons name="trophy" size={20} color={colors.warning} />

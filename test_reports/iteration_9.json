@@ -1,0 +1,29 @@
+{
+  "summary": "Frontend test, web preview at 390x844 (browser TZ UTC, server date 05.11.2026). EXPIRY WARNING: I added 3 TEST_ coupon glitches to MongoDB ('gültig bis 05.11.' / '06.11.' / '15.11.2026'). The API returned valid_until 05.11./06.11./15.11.2026. The today card shows glitch-expiry badge 'LÄUFT HEUTE AB' with a 2px red border (rgb 248,81,73). The tomorrow card shows 'LÄUFT MORGEN AB' with a 2px red border. The later card has no badge and a 1px normal border. These were the only 2 expiry badges on the page. The existing Bosch coupon (valid_until 06.11.2025, already past) shows no badge. Test data deleted afterwards (3 records). TRIAL-END BANNER: with proTrialEndsAt=now+5h the banner shows 'LETZTER TESTTAG · NOCH 4 STD 59 MIN' and 'Mit dem Jahres-Abo für $49.99 sparst du 48 % gegenüber monatlich.' Tapping it opens /pro. Tapping the dismiss X hides it without navigating and saves glitchradar.trialEndDismissed=<endsAt>; it stays hidden after reload. Not shown at now+48h or when expired. Shows again for a new trial end (now+2h). REGRESSION: Radar list (24 cards), Lieferdienste chip (15 cards, no error) and search 'LEGO' (7 TREFFER summary, clear brings back 24) all work.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Radar / TrialEndBanner", "issues": ["At 390px width the title 'LETZTER TESTTAG · NOCH 4 STD 59 MIN' wraps onto a second line (only 'MIN' moves down). Cosmetic. Could use numberOfLines/adjustsFontSizeToFit or a shorter text."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/seed_expiry_ui.py"],
+  "action_items": [
+    "Optional: stop the TrialEndBanner title from wrapping at 390px.",
+    "Optional: TrialEndBanner checks Date.now() only when it renders. If the trial enters its last 24h while the app stays open, the banner only appears after the next re-render. Could reuse the 60s 'now' ticker from revenuecat.tsx."
+  ],
+  "critical_code_review_comments": [
+    "expiry.ts: expires_at wins over valid_until. Dates without a year roll to next year only if more than 30 days in the past. Dates are read in device local time, so a German deal date is judged in the user's timezone. Fine for DE users.",
+    "TrialEndBanner: tying the dismiss key to trialEndsAt is correct, so a new trial end shows the banner again (verified). The nested Pressable dismiss does not trigger the parent's navigation on web (verified).",
+    "server.py coupon_terms VALID_RE needs a keyword (gültig/einlösbar/gilt/...). Text like 'nur noch bis zum 11.11.2026' is not parsed, so some deals with an end date get no warning. That is a design choice."
+  ],
+  "updated_files": ["/app/backend/tests/seed_expiry_ui.py (new test helper: seed/clean)"],
+  "success_rate": {"backend": "N/A", "frontend": "100%"},
+  "seed_data_creation": "3 TEST_Expiry coupon glitches added and deleted by id (deleted 3). No leftover data.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "To test the expiry badges, run 'python /app/backend/tests/seed_expiry_ui.py seed' (the ids are saved to /tmp/expiry_seed_ids.json), then 'clean'. To test the trial banner, set localStorage glitchradar.proTrialEndsAt and remove glitchradar.trialEndDismissed, then reload. Don't purchase.",
+  "rca_of_issue": ""
+}

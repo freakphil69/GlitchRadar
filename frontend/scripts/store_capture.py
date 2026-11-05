@@ -10,7 +10,7 @@ BASE, OUT = sys.argv[1], sys.argv[2]
 async def main():
     async with async_playwright() as p:
         browser = await p.chromium.launch()
-        ctx = await browser.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=3, is_mobile=True)
+        ctx = await browser.new_context(viewport={"width": 390, "height": 844}, device_scale_factor=3, is_mobile=True, locale="de-DE", timezone_id="Europe/Berlin")
         page = await ctx.new_page()
 
         async def shot(name):
@@ -40,6 +40,12 @@ async def main():
         await page.get_by_test_id("pro-buy-button").wait_for(timeout=60000)
         await page.get_by_test_id("app-splash").wait_for(state="detached", timeout=20000)
         await page.wait_for_timeout(1500)
+        # Preview Test Store bills in USD; show the configured Play Console EUR prices instead.
+        await page.evaluate("""() => {
+          const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+          let n; while ((n = w.nextNode())) { if (n.nodeValue.includes('$')) n.nodeValue = n.nodeValue.replace(/\\s?\\$/g, ' €'); }
+        }""")
+        await page.wait_for_timeout(300)
         await shot("pro")
         await browser.close()
 

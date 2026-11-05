@@ -9,6 +9,7 @@ import { Age } from "@/src/components/Age";
 import { Countdown } from "@/src/components/Countdown";
 import { useToast } from "@/src/components/Toast";
 import { fmtMoney, imgSrc } from "@/src/lib/format";
+import { expiryUrgency } from "@/src/lib/expiry";
 import { useIsStashed, useStashActions } from "@/src/lib/stash";
 import { RISK_LABELS, TYPE_LABELS, type Glitch } from "@/src/lib/types";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -23,6 +24,7 @@ export function GlitchCard({ glitch, index = 0 }: { glitch: Glitch; index?: numb
 
   const riskColor =
     glitch.risk_level === "low" ? colors.success : glitch.risk_level === "medium" ? colors.warning : colors.error;
+  const urgency = expiryUrgency(glitch);
 
   const onStash = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -40,8 +42,18 @@ export function GlitchCard({ glitch, index = 0 }: { glitch: Glitch; index?: numb
       <Pressable
         testID={`glitch-card-${glitch.id}`}
         onPress={() => router.push(`/glitch/${glitch.id}`)}
-        style={({ pressed }) => [styles.card, pressed && { borderColor: colors.borderStrong }]}
+        style={({ pressed }) => [
+          styles.card,
+          urgency && styles.cardUrgent,
+          pressed && { borderColor: colors.borderStrong },
+        ]}
       >
+        {urgency ? (
+          <View style={styles.urgentBanner} testID={`glitch-expiry-${glitch.id}`}>
+            <MaterialCommunityIcons name="timer-alert-outline" size={16} color={colors.error} />
+            <Text style={styles.urgentText}>{urgency === "today" ? "LÄUFT HEUTE AB" : "LÄUFT MORGEN AB"}</Text>
+          </View>
+        ) : null}
         <View style={styles.headerRow}>
           <View style={styles.typeBadge}>
             <Text style={styles.typeBadgeText}>{TYPE_LABELS[glitch.type]}</Text>
@@ -93,8 +105,8 @@ export function GlitchCard({ glitch, index = 0 }: { glitch: Glitch; index?: numb
               </View>
             ) : null}
             {glitch.valid_until ? (
-              <View style={styles.termBox}>
-                <Text style={styles.termLabel}>GÜLTIG BIS</Text>
+              <View style={[styles.termBox, urgency && styles.termBoxUrgent]}>
+                <Text style={[styles.termLabel, urgency && { color: colors.error }]}>GÜLTIG BIS</Text>
                 <Text style={styles.termValue}>{glitch.valid_until}</Text>
               </View>
             ) : null}
@@ -159,6 +171,20 @@ const useStyles = makeStyles((c) => ({
     backgroundColor: c.surfaceTertiary,
   },
   termsRow: { flexDirection: "row", gap: spacing.sm },
+  cardUrgent: { borderColor: c.error, borderWidth: 2 },
+  urgentBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: c.error,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
+  },
+  urgentText: { fontFamily: fonts.mono, fontSize: 11, letterSpacing: 1.5, color: c.error },
+  termBoxUrgent: { borderColor: c.error, backgroundColor: c.surfaceSecondary },
   termBox: {
     flex: 1,
     borderWidth: 1,

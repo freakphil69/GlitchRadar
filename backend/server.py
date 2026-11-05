@@ -218,7 +218,7 @@ MIN_ORDER_RE = re.compile(
     re.I,
 )
 VALID_RE = re.compile(
-    r"(?:gültig|einlösbar|gilt|Aktionszeitraum|Zeitraum|läuft)[^.\n]{0,40}?bis\s*(?:zum\s*|einschließlich\s*)?(\d{1,2}\.\s?\d{1,2}\.(?:\s?\d{2,4})?)",
+    r"(?:gültig|einlösbar|gilt|Aktionszeitraum|Zeitraum|läuft|nur noch|Aktion)[^.\n]{0,40}?bis\s*(?:zum\s*|einschließlich\s*)?(\d{1,2}\.\s?\d{1,2}\.(?:\s?\d{2,4})?)",
     re.I,
 )
 
