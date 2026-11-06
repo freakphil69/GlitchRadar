@@ -59,6 +59,7 @@ export default function RootLayout() {
                   <Stack.Screen name="favorites" />
                   <Stack.Screen name="share-savings" options={{ presentation: "modal" }} />
                   <Stack.Screen name="legal" />
+                  <Stack.Screen name="faq" />
                 </Stack>
                 <AppSplash />
               </ToastProvider>
