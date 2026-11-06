@@ -10,7 +10,7 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "test:beta": "node --test scripts/test-api.cjs scripts/test-billing-startup.cjs"
+    "test:beta": "node --test scripts/test-api.cjs scripts/test-billing-startup.cjs scripts/test-mascot.cjs"
   },
   "dependencies": {
     "@expo/metro-runtime": "57.0.17",

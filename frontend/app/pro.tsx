@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ActivityIndicator, Image, Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@react-native-vector-icons/material-design-icons";
@@ -6,6 +6,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { PurchasesPackage } from "react-native-purchases";
 
 import { useToast } from "@/src/components/Toast";
+import { Mascot } from "@/src/components/Mascot";
+import { annualSavingPercent } from "@/src/lib/annual-saving";
 import { useAuth } from "@/src/lib/auth";
 import { isTestStore, TRIAL_DAYS, trialLeftText, useSubscription } from "@/src/lib/revenuecat";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -44,24 +46,23 @@ export default function ProScreen() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // Only weekly / monthly / annual are offered.
+  const availablePackages = sub.offerings?.current?.availablePackages;
   const packages = useMemo(
     () =>
-      (sub.offerings?.current?.availablePackages ?? []).filter((p) =>
+      (availablePackages ?? []).filter((p) =>
         (CARD_ORDER as readonly string[]).includes(p.packageType),
       ),
-    [sub.offerings],
+    [availablePackages],
   );
   const cards = CARD_ORDER.map((t) => packages.find((p) => p.packageType === t)).filter(
     (p): p is PurchasesPackage => !!p,
   );
 
-  useEffect(() => {
-    if (selectedId || packages.length === 0) return;
-    const def = packages.find((p) => p.packageType === "ANNUAL") ?? packages[0];
-    setSelectedId(def.identifier);
-  }, [packages, selectedId]);
-
-  const selected = packages.find((p) => p.identifier === selectedId) ?? null;
+  const annual = packages.find((p) => p.packageType === "ANNUAL");
+  const monthly = packages.find((p) => p.packageType === "MONTHLY");
+  // Derive the default instead of scheduling a second render after offerings load.
+  const selected = packages.find((p) => p.identifier === selectedId) ?? annual ?? packages[0] ?? null;
+  const annualSaving = annualSavingPercent(annual?.product, monthly?.product);
   const locked = !auth.user || !sub.identityReady || sub.isPurchasing;
 
   const doPurchase = async (pkg: PurchasesPackage) => {
@@ -128,7 +129,7 @@ export default function ProScreen() {
 
         {sub.isSubscribed ? (
           <View style={styles.activeBox} testID="pro-active">
-            <MaterialCommunityIcons name="check-decagram" size={22} color={colors.success} />
+            <Mascot pose="proud" width={64} height={84} />
             <Text style={styles.activeText}>PRO IST AKTIV – DANKE!</Text>
           </View>
         ) : sub.isLoading ? (
@@ -139,9 +140,25 @@ export default function ProScreen() {
           </Text>
         ) : (
           <View style={{ paddingHorizontal: spacing.lg, gap: spacing.md, marginTop: spacing.lg }}>
+            {annual ? (
+              <View style={styles.annualOffer} testID="pro-annual-offer">
+                <Mascot pose="offer" width={104} height={104} />
+                <View style={styles.annualCopy}>
+                  <Text style={styles.annualLabel}>DEIN JAHRES-ABO</Text>
+                  <Text style={styles.annualPrice}>{annual.product.priceString} / Jahr</Text>
+                  {annualSaving !== null ? (
+                    <Text style={styles.annualNote} testID="pro-annual-saving">
+                      Rund {annualSaving} % weniger als 12 Monatszahlungen.
+                    </Text>
+                  ) : (
+                    <Text style={styles.annualNote}>Ein Jahr PRO im Jahres-Abo.</Text>
+                  )}
+                </View>
+              </View>
+            ) : null}
             <View style={styles.cardsRow}>
               {cards.map((pkg) => {
-                const on = pkg.identifier === selectedId;
+                const on = pkg.identifier === selected?.identifier;
                 const featured = pkg.packageType === "ANNUAL";
                 const m = metaOf(pkg);
                 return (
@@ -295,7 +312,21 @@ const useStyles = makeStyles((c) => ({
     borderRadius: radius.md,
     padding: spacing.md,
   },
-  activeText: { fontFamily: fonts.mono, fontSize: 13, letterSpacing: 1.5, color: c.success },
+  activeText: { flex: 1, fontFamily: fonts.mono, fontSize: 13, letterSpacing: 1.5, color: c.success },
+  annualOffer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: c.border,
+    backgroundColor: c.surfaceSecondary,
+  },
+  annualCopy: { flex: 1, minWidth: 0, gap: 5 },
+  annualLabel: { fontFamily: fonts.mono, fontSize: 10, letterSpacing: 1, color: c.onSurfaceTertiary },
+  annualPrice: { fontFamily: fonts.displayBold, fontSize: 24, color: c.brandPrimary },
+  annualNote: { fontFamily: fonts.textRegular, fontSize: 12, lineHeight: 17, color: c.onSurfaceSecondary },
   cardsRow: { flexDirection: "row", gap: spacing.sm, paddingTop: spacing.md },
   planCard: {
     flex: 1,
