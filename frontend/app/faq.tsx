@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { Pressable, Text, View } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@react-native-vector-icons/material-design-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { RadarFeedback } from "@/src/components/RadarFeedback";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
 const FAQ: { q: string; a: string }[] = [
@@ -62,14 +64,14 @@ export default function FaqScreen() {
 
   return (
     <View style={styles.screen}>
-      <ScrollView contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + spacing.xl }}>
+      <KeyboardAwareScrollView bottomOffset={24} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: insets.bottom + spacing.xl }}>
         <View style={styles.headerRow}>
           <Pressable testID="faq-back-button" onPress={() => router.back()} style={styles.iconBtn} hitSlop={8}>
             <MaterialCommunityIcons name="arrow-left" size={22} color={colors.onSurface} />
           </Pressable>
-          <Text style={styles.title}>FAQ</Text>
+          <Text style={styles.title}>FAQ & FEEDBACK</Text>
         </View>
-        <Text style={styles.intro}>Häufige Fragen zu GlitchRadar. Tippe auf eine Frage für die Antwort.</Text>
+        <Text style={styles.intro}>Häufige Fragen zu GlitchRadar. Tippe auf eine Frage für die Antwort. Ganz unten kannst du die App bewerten.</Text>
         {FAQ.map((item, i) => (
           <Pressable
             key={item.q}
@@ -88,7 +90,8 @@ export default function FaqScreen() {
             {open === i ? <Text style={styles.body}>{item.a}</Text> : null}
           </Pressable>
         ))}
-      </ScrollView>
+        <RadarFeedback />
+      </KeyboardAwareScrollView>
     </View>
   );
 }

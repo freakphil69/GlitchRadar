@@ -72,7 +72,7 @@ export default function TerminalScreen() {
     { id: "favorites", icon: "store-check", title: "Lieblings-Shops", text: favText, to: "/favorites" },
     { id: "hof", icon: "trophy", title: "Hall of Fame", text: "Die größten echten Preisfehler aller Zeiten", to: "/hall-of-fame" },
     { id: "scout", icon: "radar", title: "Scout & Scan-Protokoll", text: "Live-Quellen manuell abfragen", to: "/scout" },
-    { id: "faq", icon: "help-circle-outline", title: "Häufige Fragen (FAQ)", text: "So funktioniert GlitchRadar", to: "/faq" },
+    { id: "faq", icon: "help-circle-outline", title: "FAQ & Feedback", text: "Häufige Fragen – und deine Bewertung", to: "/faq" },
     { id: "legal", icon: "scale-balance", title: "Impressum & Datenschutz", text: "Rechtliches und Werbehinweis", to: "/legal" },
   ] as const;
 

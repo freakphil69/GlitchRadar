@@ -781,6 +781,58 @@ async def stats():
 auth_router, current_user = make_auth(db)
 
 
+# ---------------------------------------------------------------------------
+# Feedback (Radar-Bewertung + Kommentar) – ohne KI, ohne Kosten
+# ---------------------------------------------------------------------------
+
+FEEDBACK_TAGS = {"Funde", "Geschwindigkeit", "Design", "KI-Pläne", "Codes", "Preis", "Bug", "Idee"}
+FEEDBACK_PER_HOUR = 5
+
+
+class FeedbackIn(BaseModel):
+    rating: int = Field(ge=1, le=5)
+    comment: str = Field(default="", max_length=1000)
+    tags: List[str] = Field(default_factory=list, max_length=8)
+
+
+import hashlib as _hashlib
+import secrets as _secrets
+_FEEDBACK_SALT = _secrets.token_hex(16)  # zufällig, wechselt bei jedem Server-Neustart
+
+
+def _ip_hash(request: Request) -> str:
+    fwd = request.headers.get("x-forwarded-for", "")
+    ip = fwd.split(",")[0].strip() if fwd else (request.client.host if request.client else "")
+    return _hashlib.sha256(f"{_FEEDBACK_SALT}:{ip}".encode()).hexdigest()[:32]
+
+
+@api_router.post("/feedback", status_code=201)
+async def send_feedback(body: FeedbackIn, request: Request):
+    ip_h = _ip_hash(request)  # nur Hash, keine IP gespeichert – dient allein dem Spamschutz
+    recent = await db.feedback.count_documents({"ip_hash": ip_h, "created_at": {"$gt": _now() - timedelta(hours=1)}})
+    if recent >= FEEDBACK_PER_HOUR:
+        raise HTTPException(status_code=429, detail="Danke! Du hast gerade schon Feedback geschickt. Versuch es später nochmal.")
+    await db.feedback.insert_one({
+        "rating": body.rating,
+        "comment": _to_text(body.comment).strip()[:1000],
+        "tags": [t for t in body.tags if t in FEEDBACK_TAGS],
+        "ip_hash": ip_h,
+        "created_at": _now(),
+    })
+    return {"ok": True}
+
+
+@api_router.get("/feedback/summary")
+async def feedback_summary():
+    """Öffentlich nur Durchschnitt und Anzahl – Kommentare bleiben privat."""
+    rows = await db.feedback.aggregate([
+        {"$group": {"_id": None, "avg": {"$avg": "$rating"}, "n": {"$sum": 1}}},
+    ]).to_list(1)
+    if not rows:
+        return {"average": None, "count": 0}
+    return {"average": round(_f(rows[0].get("avg")), 1), "count": _i(rows[0].get("n"))}
+
+
 class StashIn(BaseModel):
     items: List[dict] = Field(default_factory=list, max_length=500)
 
@@ -855,6 +907,7 @@ async def startup():
         }})
     await db.scans.update_many({"status": "running"}, {"$set": {"status": "failed", "error": "Server-Neustart"}})
     await ensure_auth_indexes(db)
+    await db.feedback.create_index([("ip_hash", 1), ("created_at", -1)])
     # Ältere Einträge ehrlich kennzeichnen: Herkunft der Bewertung nicht eindeutig.
     await db.glitches.update_many({"score_source": {"$exists": False}}, {"$set": {"score_source": "legacy"}})
     await db.glitches.update_many({"enriched": True, "analysis_source": {"$exists": False}},
