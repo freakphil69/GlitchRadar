@@ -29,13 +29,12 @@ const REVENUECAT_ANDROID_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_AP
 
 export const REVENUECAT_ENTITLEMENT_IDENTIFIER = "pro"; // from setup: entitlement_lookup_key
 
-export const rcEnabled = Platform.OS !== "web" || __DEV__; // web preview uses the Test Store
+// Optional billing must not break the free radar on startup. Consumers only
+// access the native SDK once configure has actually completed.
+export let rcEnabled = false;
 export const isTestStore = Platform.OS === "web" || __DEV__;
 
 function getRevenueCatApiKey() {
-  if (!REVENUECAT_TEST_API_KEY || !REVENUECAT_IOS_API_KEY || !REVENUECAT_ANDROID_API_KEY) {
-    throw new Error("RevenueCat public API keys not found — run the Setup section first");
-  }
   if (Platform.OS === "web" || __DEV__) {
     return REVENUECAT_TEST_API_KEY; // Expo Go and the web preview use the RevenueCat Test Store
   }
@@ -45,9 +44,12 @@ function getRevenueCatApiKey() {
 }
 
 export function initializeRevenueCat() {
-  if (!rcEnabled) return; // no store on production web
+  if (rcEnabled || (Platform.OS === "web" && !__DEV__)) return;
+  const apiKey = getRevenueCatApiKey();
+  if (!apiKey) return; // Radar, search and detail remain usable without billing.
   Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.DEBUG : LOG_LEVEL.WARN);
-  Purchases.configure({ apiKey: getRevenueCatApiKey() });
+  Purchases.configure({ apiKey });
+  rcEnabled = true;
 }
 
 function useSubscriptionContext() {

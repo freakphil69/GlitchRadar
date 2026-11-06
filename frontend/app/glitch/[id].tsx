@@ -57,8 +57,7 @@ export default function GlitchDetailScreen() {
   }, [glitch?.id, glitch?.enriched]);
 
   const retryEnrich = () => {
-    enrich.reset();
-    autoEnrichRef.current = null;
+    enrich.mutate();
   };
 
   const onCta = async () => {
@@ -85,7 +84,7 @@ export default function GlitchDetailScreen() {
     const link =
       glitch.affiliate_url ??
       glitch.url ??
-      `https://www.google.com/search?q=${encodeURIComponent(`${glitch.shop} ${glitch.title}`)}`;
+      glitch.source_url;
     WebBrowser.openBrowserAsync(link);
   };
 
@@ -360,7 +359,7 @@ export default function GlitchDetailScreen() {
           <Pressable testID="detail-shop-button" onPress={onShop} style={[styles.secondaryBtn, { flex: 1 }]}>
             <MaterialCommunityIcons name="storefront-outline" size={18} color={colors.onSurfaceSecondary} />
             <Text style={[styles.secondaryText, { color: colors.onSurfaceSecondary }]}>
-              {glitch.affiliate_url ?? glitch.url ? "ZUM SHOP" : "SHOP SUCHEN"}
+              {glitch.affiliate_url ?? glitch.url ? "ZUM ANGEBOT" : "ZUM ORIGINAL-BEITRAG"}
             </Text>
             {isAd ? <Text testID="detail-ad-label" style={styles.adTag}>ANZEIGE</Text> : null}
           </Pressable>

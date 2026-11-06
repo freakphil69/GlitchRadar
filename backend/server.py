@@ -16,10 +16,9 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, field_validator
 from starlette.middleware.cors import CORSMiddleware
 
-from emergentintegrations.llm.chat import LlmChat, UserMessage
 import ai_budget
 
-from urllib.parse import quote
+from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 
 from auth import ensure_auth_indexes, make_auth
 from feeds import FEEDS, _to_text, fetch_all_feeds
@@ -29,7 +28,7 @@ load_dotenv(ROOT_DIR / '.env')
 
 MONGO_URL = os.environ['MONGO_URL']
 DB_NAME = os.environ['DB_NAME']
-EMERGENT_LLM_KEY = os.environ['EMERGENT_LLM_KEY']
+EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '').strip()
 
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
@@ -185,14 +184,25 @@ def _awin_advertisers() -> dict:
     return out
 
 
-def build_affiliate_link(shop: str) -> tuple[Optional[str], Optional[str]]:
+def build_affiliate_link(shop: str, target_url: Optional[str] = None) -> tuple[Optional[str], Optional[str]]:
     key = (shop or "").strip().lower()
-    base_url = SHOP_HOMEPAGES.get(key)
-    if not base_url:
+    # A merchant homepage is not an offer. Never invent a destination from a
+    # shop name; monetization must preserve the exact supplied product link.
+    if not target_url:
         return None, None
+    target = urlsplit(target_url)
+    known_homepage = SHOP_HOMEPAGES.get(key)
+    if (target.scheme not in {"http", "https"} or not target.hostname
+            or target.username or target.password or target.path in {"", "/"}):
+        return None, None
+    base_url = target_url
+    if not known_homepage or target.hostname.removeprefix("www.") != urlsplit(known_homepage).hostname.removeprefix("www."):
+        return base_url, None
     amazon_tag = os.environ.get("AMAZON_PARTNER_TAG", "").strip()
     if key.startswith("amazon") and amazon_tag:
-        return base_url, f"{base_url}?tag={quote(amazon_tag)}"
+        params = [(k, v) for k, v in parse_qsl(target.query, keep_blank_values=True) if k != "tag"]
+        params.append(("tag", amazon_tag))
+        return base_url, urlunsplit(target._replace(query=urlencode(params)))
     publisher = os.environ.get("AWIN_PUBLISHER_ID", "").strip()
     advertiser = _awin_advertisers().get(key)
     if publisher and advertiser:
@@ -289,10 +299,11 @@ class GlitchDoc(BaseDocument):
 
     def out(self) -> dict:
         d = super().out()
-        if not d.get("url") or not d.get("affiliate_url"):
-            base, aff = build_affiliate_link(self.shop)
-            d["url"] = d.get("url") or base
-            d["affiliate_url"] = d.get("affiliate_url") or aff
+        base, aff = build_affiliate_link(self.shop, d.get("url"))
+        d["url"] = base
+        # Discard old synthesized homepage affiliates, too. Without a specific
+        # target, the client offers the original source post instead.
+        d["affiliate_url"] = aff
         d.update(coupon_terms(f"{self.title} {self.description}"))
         at = _ensure_tz(self.analyzed_at) if self.analyzed_at else None
         d["analysis_stale"] = bool(at and _now() - at > timedelta(hours=ENRICH_TTL_HOURS))
@@ -337,9 +348,12 @@ FUND-LISTE:
 
 async def score_items(items: list) -> List[dict]:
     defaults = [{"risk_level": "medium", "success_rate": 70, "risk_note": "", "ai": False} for _ in items]
+    if not EMERGENT_LLM_KEY:
+        return defaults
     if not await ai_budget.reserve(db, "scoring"):
         return defaults  # Sparbetrieb: keine KI, Regelbewertung übernimmt
     try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
         chat = (
             LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"scorer-{uuid.uuid4()}", system_message=SCORE_SYSTEM)
             .with_model("gemini", SCORER_MODEL)
@@ -581,6 +595,8 @@ async def enrich_glitch(glitch_id: str):
     #    Deal-Analysen sind öffentlich (keine Nutzerdaten) und dürfen geteilt werden.
     if g.enriched and g.instructions:
         return g.out()
+    if not EMERGENT_LLM_KEY:
+        raise HTTPException(status_code=503, detail="Optionale KI-Analyse nicht eingerichtet. Der Original-Beitrag bleibt verfügbar.")
     # 2) Gleichzeitige identische Anfragen: nur EIN Aufruf (pro Prozess per Lock,
     #    prozessübergreifend per kurzer Sperre in MongoDB).
     lock = _enrich_locks.setdefault(glitch_id, asyncio.Lock())
@@ -612,6 +628,7 @@ async def enrich_glitch(glitch_id: str):
                 "source": g.source_label, "source_url": g.source_url,
             }, ensure_ascii=False)
             try:
+                from emergentintegrations.llm.chat import LlmChat, UserMessage
                 chat = (
                     LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"analyst-{glitch_id}", system_message=ANALYST_SYSTEM)
                     .with_model("anthropic", ANALYST_MODEL)
