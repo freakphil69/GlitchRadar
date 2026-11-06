@@ -87,3 +87,9 @@
 - TrialEndBanner im Radar am letzten Testtag (Jahres-Ersparnis vs. monatlich, wegklickbar)
 - Store-Texte: /app/memory/STORE_LISTING.md (auch im ZIP)
 - Store-Bilder neu (Paywall mit EUR-Preisen), ZIP unter /glitchradar-store-bilder.zip
+
+## Iteration 13 (Performance)
+- Polling: glitches 60s, alarm 45s, stats 60s, scans 30s, facets staleTime 5min, global staleTime 20s; Polling pausiert im Hintergrund (focusManager+AppState)
+- Countdown tickt nur in letzter Stunde sekündlich, sonst minütlich (Anzeige „X STD MM MIN“)
+- GlitchCard memo, Einblend-Animation nur erste 8 Karten, FlatList-Tuning
+- Backend: _expire_stale max. 1x/Minute

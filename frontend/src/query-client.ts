@@ -2,6 +2,17 @@
 // this instance. Import it for cache calls outside components, for example
 // queryClient.invalidateQueries or setQueryData in websocket or push
 // handlers; inside components useQueryClient() returns this same instance.
-import { QueryClient } from "@tanstack/react-query";
+import { AppState, Platform } from "react-native";
+import { focusManager, QueryClient } from "@tanstack/react-query";
 
-export const queryClient = new QueryClient();
+// Pause polling while the app is in the background (saves battery & data on phones).
+if (Platform.OS !== "web") {
+  focusManager.setEventListener((handleFocus) => {
+    const sub = AppState.addEventListener("change", (s) => handleFocus(s === "active"));
+    return () => sub.remove();
+  });
+}
+
+export const queryClient = new QueryClient({
+  defaultOptions: { queries: { staleTime: 20_000 } },
+});

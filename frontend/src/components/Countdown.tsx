@@ -20,10 +20,12 @@ export function Countdown({ expiresAt, size = "sm" }: { expiresAt: string; size?
   const styles = useStyles();
   const [now, setNow] = useState(() => Date.now());
 
+  // Tick every second only in the last hour (seconds visible); otherwise once a minute.
+  const lastHour = new Date(expiresAt).getTime() - now < 3_600_000;
   useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
+    const t = setInterval(() => setNow(Date.now()), lastHour ? 1000 : 60_000);
     return () => clearInterval(t);
-  }, []);
+  }, [lastHour]);
 
   const ms = new Date(expiresAt).getTime() - now;
   const expired = ms <= 0;
@@ -31,7 +33,7 @@ export function Countdown({ expiresAt, size = "sm" }: { expiresAt: string; size?
   const h = Math.floor(totalSec / 3600);
   const m = Math.floor((totalSec % 3600) / 60);
   const s = totalSec % 60;
-  const label = expired ? "ABGELAUFEN" : h > 0 ? `${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+  const label = expired ? "ABGELAUFEN" : h > 0 ? `${h} STD ${pad(m)} MIN` : `${pad(m)}:${pad(s)}`;
   const critical = !expired && totalSec < 15 * 60;
   const tone = expired ? colors.muted : h >= 2 ? colors.success : totalSec >= 15 * 60 ? colors.warning : colors.error;
 

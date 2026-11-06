@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Pressable, Text, View } from "react-native";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
@@ -14,7 +15,7 @@ import { useIsStashed, useStashActions } from "@/src/lib/stash";
 import { RISK_LABELS, TYPE_LABELS, type Glitch } from "@/src/lib/types";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
-export function GlitchCard({ glitch, index = 0 }: { glitch: Glitch; index?: number }) {
+export const GlitchCard = memo(function GlitchCard({ glitch, index = 0 }: { glitch: Glitch; index?: number }) {
   const router = useRouter();
   const { colors } = useTheme();
   const styles = useStyles();
@@ -38,7 +39,7 @@ export function GlitchCard({ glitch, index = 0 }: { glitch: Glitch; index?: numb
   };
 
   return (
-    <Animated.View entering={FadeInDown.delay(Math.min(index * 45, 360)).duration(250)}>
+    <Animated.View entering={index < 8 ? FadeInDown.delay(index * 45).duration(250) : undefined}>
       <Pressable
         testID={`glitch-card-${glitch.id}`}
         onPress={() => router.push(`/glitch/${glitch.id}`)}
@@ -143,7 +144,7 @@ export function GlitchCard({ glitch, index = 0 }: { glitch: Glitch; index?: numb
       </Pressable>
     </Animated.View>
   );
-}
+});
 
 const useStyles = makeStyles((c) => ({
   card: {

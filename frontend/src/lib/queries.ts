@@ -22,7 +22,7 @@ export function useGlitches(filters: GlitchFilters) {
           `&categories=${encodeURIComponent(filters.categories.join(","))}` +
           `&q=${encodeURIComponent(filters.q ?? "")}`,
       ),
-    refetchInterval: 30_000,
+    refetchInterval: 60_000,
   });
 }
 
@@ -30,12 +30,12 @@ export function useAlarm() {
   return useQuery({
     queryKey: ["alarm"],
     queryFn: () => apiGet<AlarmGlitch[]>("/alarm"),
-    refetchInterval: 30_000,
+    refetchInterval: 45_000,
   });
 }
 
 export function useFacets() {
-  return useQuery({ queryKey: ["facets"], queryFn: () => apiGet<Facets>("/facets") });
+  return useQuery({ queryKey: ["facets"], queryFn: () => apiGet<Facets>("/facets"), staleTime: 5 * 60_000 });
 }
 
 export function useCodes(shop: string) {
@@ -69,7 +69,7 @@ export function useStats() {
   return useQuery({
     queryKey: ["stats"],
     queryFn: () => apiGet<Stats>("/stats"),
-    refetchInterval: 30_000,
+    refetchInterval: 60_000,
   });
 }
 
@@ -77,7 +77,7 @@ export function useRecentScans() {
   return useQuery({
     queryKey: ["scans"],
     queryFn: () => apiGet<Scan[]>("/scans/recent"),
-    refetchInterval: 15_000,
+    refetchInterval: 30_000,
   });
 }
 

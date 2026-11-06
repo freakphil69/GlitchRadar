@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import re
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -387,7 +388,15 @@ async def root():
     return {"message": "GlitchRadar.io API", "sources": [f[2] for f in FEEDS]}
 
 
+_last_expire_check = 0.0
+
+
 async def _expire_stale() -> None:
+    # Runs on many read endpoints; once a minute is plenty.
+    global _last_expire_check
+    if time.monotonic() - _last_expire_check < 60:
+        return
+    _last_expire_check = time.monotonic()
     now = _now()
     await db.glitches.update_many(
         {"status": "active", "$or": [

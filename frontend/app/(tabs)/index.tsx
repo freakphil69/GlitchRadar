@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ActivityIndicator, FlatList, Linking, Pressable, RefreshControl, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, FlatList, Linking, Platform, Pressable, RefreshControl, Text, TextInput, View } from "react-native";
 import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@react-native-vector-icons/material-design-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -157,6 +157,10 @@ export default function RadarScreen() {
         data={glitches}
         keyExtractor={(g) => g.id}
         renderItem={({ item, index }) => <GlitchCard glitch={item} index={index} />}
+        initialNumToRender={6}
+        maxToRenderPerBatch={6}
+        windowSize={9}
+        removeClippedSubviews={Platform.OS === "android"}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
