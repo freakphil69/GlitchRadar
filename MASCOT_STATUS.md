@@ -33,10 +33,10 @@ Die vorausgewählte Abo-Option wird jetzt direkt aus dem Angebot abgeleitet, sta
 
 ## Verifikation
 
-- **Frontend-Tests:** `npm run test:beta` enthält nun 18 Tests einschließlich einmaligem Glitch, Reduzierter Bewegung, Animation-Cleanup, spätem Async-Ergebnis, einheitlichen Logo-Verweisen und der ausdrücklich ausgewählten gekreuzten Pose.
+- **Frontend-Tests:** `npm run test:beta`, alle 18 bestanden, einschließlich einmaligem Glitch, Reduzierter Bewegung, Animation-Cleanup, spätem Async-Ergebnis, einheitlichen Logo-Verweisen und der ausdrücklich ausgewählten gekreuzten Pose.
 - **TypeScript:** `npx tsc --noEmit`, bestanden.
 - **Gezieltes Lint:** Die bisherigen Maskottchen-, Hintergrundstatus- und Paywall-Dateien wurden im vorherigen Stand geprüft. Für die aktuelle Logo-Änderung: `npx eslint src/components/Mascot.tsx src/components/AppSplash.tsx src/components/Ticker.tsx`, bestanden.
-- **Android-Export:** `CI=1 npx expo export --platform android`, erfolgreich im vorigen Stand; nach Zusammenführung wird der integrierte Stand erneut gebündelt. Das ist kein signiertes AAB und kein Gerätetest.
+- **Android-Export:** `CI=1 npx expo export --platform android`, nach Zusammenführung erneut erfolgreich. Das ist kein signiertes AAB und kein Gerätetest.
 - **Layout:** Im vorherigen Stand lokale Browser-Prüfung mit 320 und 390 Pixel Breite für Start, Paywall und PRO-Bestätigung. Dafür wurden die echten Bildschirmkomponenten serverseitig gerendert, Billing/Auth und Bild-Dekodierung für die Layoutansicht ersetzt und Testpreise verwendet. Die aktuelle gekreuzte Pose wurde als Bild kontrolliert; der Ticker ist komponentengetestet, aber noch nicht im laufenden Testraum oder auf einem Android-Gerät geprüft. Kein echter Store-Aufruf, kein Kauf und keine Live-App-Prüfung.
 
 ## Übergabe und Grenzen

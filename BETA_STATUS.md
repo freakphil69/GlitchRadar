@@ -5,7 +5,7 @@ Stand: 7. November 2026. Ziel ist ein zuverlässiger Start und der Kernablauf �
 ## Ergebnis bisher
 
 - **Grundlage:** Der Arbeitszweig `beta-core` enthält die bisherigen Änderungen aus `sparbetrieb`, einschließlich Kostenbremse, FAQ und Feedback. `main` und die laufende App werden dadurch nicht automatisch verändert.
-- **Lokale Tests:** Der frühere Backend-Prüflauf umfasst 11 bestandene Tests. Nach der Maskottchen-Logo-Integration umfasst die Frontend-Suite am 7. November 17 Tests; TypeScript, gezieltes Lint und Android-Export gehören zur Prüfung.
+- **Lokale Tests:** Der frühere Backend-Prüflauf umfasst 11 bestandene Tests. Nach Zusammenführung der neueren Startbildschirm-Änderung mit Otto mit verschränkten Armen bestehen am 7. November alle 18 Frontend-Tests, TypeScript, gezieltes Lint und Android-Export.
 - **Android-Bündel:** Die JavaScript-/Asset-Bündelung wurde nach Behebung des Versionskonflikts erfolgreich durchgeführt. Das ist kein signiertes AAB und kein Installationstest auf einem Android-Gerät.
 - **Echte Angebotsstichprobe:** Noch nicht durchgeführt. Es wurden ausdrücklich nicht 40 Test-Fixtures als echte geprüfte Angebote gezählt.
 - **Kosten:** Die neuen Tests verwenden eine simulierte Datenbank, Feed-Fixtures und SDK-Stubs. Sie benötigen keine kostenpflichtigen KI-Aufrufe.
@@ -41,11 +41,13 @@ npm run test:beta
 npx tsc --noEmit
 ```
 
-Die ursprünglichen sieben Frontend-Tests prüfen URL-Normalisierung, Auth-Header, fehlende Konfiguration, Timeout, HTTP-Statusbehandlung sowie drei RevenueCat-Startfälle. Zehn ergänzende Tests prüfen die Bilder, den einmaligen Start-Glitch, Logo-Verweise, die native Fokus-Anbindung, die Preisvergleichslogik und Paywall-Zustände. Ein erfolgreicher TypeScript-Check und eine erfolgreiche Bündelung ersetzen keinen Gerätetest.
+Die ursprünglichen sieben Frontend-Tests prüfen URL-Normalisierung, Auth-Header, fehlende Konfiguration, Timeout, HTTP-Statusbehandlung sowie drei RevenueCat-Startfälle. Elf ergänzende Tests prüfen die Bilder, den einmaligen Start-Glitch, Logo-Verweise, die ausdrücklich gewählte gekreuzte Pose im kleinen Ticker-Logo, die native Fokus-Anbindung, die Preisvergleichslogik und Paywall-Zustände. Ein erfolgreicher TypeScript-Check und eine erfolgreiche Bündelung ersetzen keinen Gerätetest.
 
 ## Warum die echte 40er-Prüfung noch offen ist
 
 Der aus dem bisherigen Projekt bekannte [Vorschau-Endpunkt](https://error-scout-20.preview.emergentagent.com/api/glitches) lieferte bei der Prüfung HTTP 404. In dieser Sitzung zeigt [Emergent](https://app.emergent.sh/) die Anmeldeseite, nicht den aktuellen Testraum.
+
+Bei der erneuten Prüfung am 7. November zeigte die bisherige Vorschau lediglich eine Ladeansicht, keinen bedienbaren Angebotsbestand. Der Google-Anmeldedialog für die Play Console ist geöffnet; der Beleg über die Entwicklerregistrierungsgebühr wurde im verbundenen Postfach gefunden. Der Beleg bestätigt weder die tatsächliche Kontozuordnung der App noch fertige Abos oder einen eingerichteten Testkanal. Passwörter wurden nicht eingegeben und kein Release eingereicht.
 
 Auch die vorhandene größere Backend-Testsammlung ist keine bestandene Live-Prüfung: Der Lauf ergab 46 Fehlschläge und 6 Setup-Fehler bei 14 bestandenen Tests. Die HTTP-basierten Tests treffen den nicht verfügbaren alten Vorschau-Endpunkt; vier Setup-Fehler betreffen außerdem die Event-Loop-Annahme alter Test-Fixtures unter der hier verwendeten Python-Version. Diese Ergebnisse sind weder als 46 nachgewiesene Produktfehler noch als bestandener Beta-Test zu interpretieren.
 
