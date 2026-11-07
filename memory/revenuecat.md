@@ -45,3 +45,5 @@ Auth exists (2026-10-23): AuthProvider (src/lib/auth.tsx) calls Purchases.logIn(
 - 2026-11-02: Lifetime removed per user. $rc_annual re-created again -> prodbe18c12f67 (previous ids missing, user likely deleted in dashboard). App trial is device-side, NOT a store trial.
 
 - identityReady now uses Purchases.getAppUserID()/isAnonymous() (originalAppUserId stays anonymous after alias merge)
+
+- 2026-11-07: Paketname/Bundle-ID auf `glitchradar.app` geändert (vorher com.emergent.errorscout.kircz0). In RevenueCat muss die Play-App auf den neuen Paketnamen umgestellt werden.
