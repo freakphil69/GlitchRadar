@@ -32,54 +32,72 @@ export const REVENUECAT_ENTITLEMENT_IDENTIFIER = "pro"; // from setup: entitleme
 export const rcEnabled = Platform.OS !== "web" || __DEV__; // web preview uses the Test Store
 export const isTestStore = Platform.OS === "web" || __DEV__;
 
-function getRevenueCatApiKey() {
-  if (!REVENUECAT_TEST_API_KEY || !REVENUECAT_IOS_API_KEY || !REVENUECAT_ANDROID_API_KEY) {
-    throw new Error("RevenueCat public API keys not found — run the Setup section first");
-  }
+function getRevenueCatApiKey(): string {
+  // Pick the platform/mode first, then validate ONLY the key that is actually needed.
+  let key: string | undefined;
+  let name: string;
   if (Platform.OS === "web" || __DEV__) {
-    return REVENUECAT_TEST_API_KEY; // Expo Go and the web preview use the RevenueCat Test Store
+    key = REVENUECAT_TEST_API_KEY; // Expo Go and the web preview use the RevenueCat Test Store
+    name = "EXPO_PUBLIC_REVENUECAT_TEST_API_KEY";
+  } else if (Platform.OS === "android") {
+    key = REVENUECAT_ANDROID_API_KEY;
+    name = "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY";
+  } else if (Platform.OS === "ios") {
+    key = REVENUECAT_IOS_API_KEY;
+    name = "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY";
+  } else {
+    key = REVENUECAT_TEST_API_KEY;
+    name = "EXPO_PUBLIC_REVENUECAT_TEST_API_KEY";
   }
-  if (Platform.OS === "ios") return REVENUECAT_IOS_API_KEY;
-  if (Platform.OS === "android") return REVENUECAT_ANDROID_API_KEY;
-  return REVENUECAT_TEST_API_KEY;
+  if (!key) throw new Error(`RevenueCat key missing: ${name}`);
+  return key;
+}
+
+// True only after Purchases.configure() succeeded. All SDK queries depend on this.
+let rcConfigured = false;
+export function isRevenueCatConfigured() {
+  return rcConfigured;
 }
 
 export function initializeRevenueCat() {
   if (!rcEnabled) return; // no store on production web
   Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.DEBUG : LOG_LEVEL.WARN);
   Purchases.configure({ apiKey: getRevenueCatApiKey() });
+  rcConfigured = true;
 }
 
 function useSubscriptionContext() {
   const queryClient = useQueryClient();
+  const rcReady = rcEnabled && rcConfigured;
 
   const customerInfoQuery = useQuery({
     queryKey: ["revenuecat", "customer-info"],
     queryFn: () => Purchases.getCustomerInfo(),
-    enabled: rcEnabled,
+    enabled: rcReady,
     staleTime: 60 * 1000,
   });
 
   const offeringsQuery = useQuery({
     queryKey: ["revenuecat", "offerings"],
     queryFn: () => Purchases.getOfferings(),
-    enabled: rcEnabled,
+    enabled: rcReady,
     staleTime: 300 * 1000,
   });
 
   // Reactive entitlement updates — the SDK pushes fresh CustomerInfo after
   // purchases, restores, renewals, and logIn/logOut. Never poll for this.
   useEffect(() => {
-    if (!rcEnabled) return;
+    if (!rcReady) return;
     const listener = (info: CustomerInfo) => queryClient.setQueryData(["revenuecat", "customer-info"], info);
     Purchases.addCustomerInfoUpdateListener(listener);
     return () => {
       Purchases.removeCustomerInfoUpdateListener(listener);
     };
-  }, [queryClient]);
+  }, [queryClient, rcReady]);
 
   const purchaseMutation = useMutation({
     mutationFn: async (packageToPurchase: PurchasesPackage) => {
+      if (!rcReady) throw new Error("store_unavailable");
       // Choke point: never let an anonymous purchase through (see identity rule).
       // originalAppUserId stays the first anonymous id after an alias merge, so check the current id.
       if (await Purchases.isAnonymous()) throw new Error("identity_not_ready");
@@ -89,7 +107,10 @@ function useSubscriptionContext() {
   });
 
   const restoreMutation = useMutation({
-    mutationFn: () => Purchases.restorePurchases(),
+    mutationFn: async () => {
+      if (!rcReady) throw new Error("store_unavailable");
+      return Purchases.restorePurchases();
+    },
   });
 
   const isSubscribed =
@@ -109,7 +130,7 @@ function useSubscriptionContext() {
   // Current RevenueCat user id, refreshed whenever customer info changes (logIn/logOut push new info).
   const [appUserId, setAppUserId] = useState<string | null>(null);
   useEffect(() => {
-    if (!rcEnabled || !customerInfoQuery.data) return;
+    if (!rcReady || !customerInfoQuery.data) return;
     Purchases.getAppUserID()
       .then(setAppUserId)
       .catch(() => setAppUserId(null));
@@ -117,6 +138,7 @@ function useSubscriptionContext() {
   const identityReady = !!appUserId && !appUserId.startsWith("$RCAnonymousID:");
 
   return {
+    storeReady: rcReady,
     customerInfo: customerInfoQuery.data,
     offerings: offeringsQuery.data,
     offeringsError: offeringsQuery.error,

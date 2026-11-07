@@ -7,7 +7,7 @@ import type { PurchasesPackage } from "react-native-purchases";
 
 import { useToast } from "@/src/components/Toast";
 import { useAuth } from "@/src/lib/auth";
-import { isTestStore, TRIAL_DAYS, trialLeftText, useSubscription } from "@/src/lib/revenuecat";
+import { isTestStore, REVENUECAT_ENTITLEMENT_IDENTIFIER, TRIAL_DAYS, trialLeftText, useSubscription } from "@/src/lib/revenuecat";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
 const PERKS = [
@@ -67,12 +67,23 @@ export default function ProScreen() {
   const doPurchase = async (pkg: PurchasesPackage) => {
     setConfirm(null);
     try {
-      await sub.purchase(pkg);
-      toast("PRO freigeschaltet!", "success");
+      const info = await sub.purchase(pkg);
+      if (info?.entitlements.active?.[REVENUECAT_ENTITLEMENT_IDENTIFIER]) {
+        toast("PRO freigeschaltet!", "success");
+      } else {
+        toast("Kauf erhalten – PRO wird noch bestätigt. Bitte gleich „Käufe wiederherstellen“ tippen.", "info");
+      }
     } catch (e) {
       const err = e as { userCancelled?: boolean; message?: string };
       if (err.userCancelled) return;
-      toast(err.message === "identity_not_ready" ? "Für den Kauf ist ein Konto nötig" : err.message || "Kauf fehlgeschlagen", "error");
+      toast(
+        err.message === "identity_not_ready"
+          ? "Für den Kauf ist ein Konto nötig"
+          : err.message === "store_unavailable"
+            ? "Store gerade nicht verfügbar. Bitte später erneut versuchen."
+            : err.message || "Kauf fehlgeschlagen",
+        "error",
+      );
     }
   };
 
@@ -84,10 +95,15 @@ export default function ProScreen() {
 
   const onRestore = async () => {
     try {
-      await sub.restore();
-      toast("Käufe wiederhergestellt", "success");
+      const info = await sub.restore();
+      if (info?.entitlements.active?.[REVENUECAT_ENTITLEMENT_IDENTIFIER]) {
+        toast("PRO wiederhergestellt", "success");
+      } else {
+        toast("Kein aktives Abo gefunden", "info");
+      }
     } catch (e) {
-      toast((e as Error).message || "Wiederherstellen fehlgeschlagen", "error");
+      const msg = (e as Error).message;
+      toast(msg === "store_unavailable" ? "Store gerade nicht verfügbar." : msg || "Wiederherstellen fehlgeschlagen", "error");
     }
   };
 
@@ -161,11 +177,10 @@ export default function ProScreen() {
                     <Text style={styles.planPrice} numberOfLines={1} adjustsFontSizeToFit>
                       {pkg.product.priceString}
                     </Text>
+                    <Text style={styles.planPer}>{m.per}</Text>
                     {featured && perMonth(pkg) ? (
-                      <Text style={styles.planPerHighlight}>Nur {perMonth(pkg)} / Monat</Text>
-                    ) : (
-                      <Text style={styles.planPer}>{m.per}</Text>
-                    )}
+                      <Text style={styles.planPerHighlight}>≈ {perMonth(pkg)} / Monat</Text>
+                    ) : null}
                   </Pressable>
                 );
               })}
