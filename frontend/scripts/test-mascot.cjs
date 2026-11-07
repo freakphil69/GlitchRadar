@@ -56,18 +56,49 @@ test("all mascot poses use small bundled static assets without image fade", () =
   assert.ok(totalBytes < 110_000, `Asset budget exceeded: ${totalBytes}`);
 });
 
-test("static splash has one dismiss timeout and clears it on unmount", () => {
+function mountSplash(reduced = false) {
   const effects = [];
   const scheduled = [];
   const cleared = [];
   let hidden = false;
   let nativeHideCount = 0;
+  let started = 0;
+  let stopped = 0;
+  let removed = false;
+  let changeMotion;
+  let steps;
+  const values = [];
+  class Value {
+    constructor(value) { this.value = value; }
+    setValue(value) { this.value = value; values.push(value); }
+    interpolate(config) { return config; }
+    stopAnimation() { stopped++; }
+  }
   const { AppSplash } = load("src/components/AppSplash.tsx", {
     react: {
       useEffect: (fn) => effects.push(fn),
       useState: () => [true, (visible) => { hidden = !visible; }],
+      useRef: (value) => ({ current: value }),
     },
-    "react-native": { View: "View", Text: "Text", StyleSheet: { create: (s) => s, absoluteFill: {} } },
+    "react-native": {
+      View: "View", Text: "Text", StyleSheet: { create: (s) => s, absoluteFill: {} },
+      useAnimatedValue: (initial) => new Value(initial),
+      AccessibilityInfo: {
+        isReduceMotionEnabled: () => Promise.resolve(reduced),
+        addEventListener: (_, fn) => {
+          changeMotion = fn;
+          return { remove: () => { removed = true; } };
+        },
+      },
+      Animated: {
+        Value, View: "AnimatedView",
+        timing: (_, config) => config,
+        sequence: (configs) => {
+          steps = configs;
+          return { start: () => { started++; }, stop: () => { stopped++; } };
+        },
+      },
+    },
     "expo-splash-screen": {
       preventAutoHideAsync: () => Promise.resolve(),
       hideAsync: () => { nativeHideCount++; return Promise.resolve(); },
@@ -80,14 +111,60 @@ test("static splash has one dismiss timeout and clears it on unmount", () => {
   });
   const tree = AppSplash();
   assert.equal(elements(tree).find((n) => n.type === "Mascot").props.pose, "neutral");
-  const cleanup = effects[0]();
+  const cleanups = effects.map((effect) => effect());
+  return {
+    tree, scheduled, cleared, cleanups, changeMotion,
+    snapshot: () => ({ hidden, nativeHideCount, started, stopped, removed, steps, values }),
+  };
+}
+
+test("splash has one dismiss timeout and clears it and animation on unmount", async () => {
+  const mounted = mountSplash();
+  const { scheduled, cleared, cleanups, snapshot } = mounted;
+  await Promise.resolve();
+  const { nativeHideCount } = snapshot();
   assert.equal(nativeHideCount, 1);
   assert.equal(scheduled.length, 1);
   assert.equal(scheduled[0].ms, 1800);
   scheduled[0].fn();
-  assert.equal(hidden, true);
-  cleanup();
+  assert.equal(snapshot().hidden, true);
+  cleanups.forEach((cleanup) => cleanup());
+  assert.equal(snapshot().removed, true);
+  assert.ok(snapshot().stopped > 0);
   assert.deepEqual(cleared, [7]);
+});
+
+test("glitch reveal runs once for 350ms on native driver, with reduced-motion fallback", async () => {
+  const mounted = mountSplash();
+  await Promise.resolve();
+  assert.equal(mounted.snapshot().started, 1);
+  const { steps } = mounted.snapshot();
+  assert.equal(steps.length, 5);
+  assert.equal(steps.reduce((sum, step) => sum + step.duration, 0), 350);
+  assert.ok(steps.every((step) => step.useNativeDriver && step.isInteraction === false));
+  mounted.changeMotion(true);
+  assert.ok(mounted.snapshot().stopped > 0);
+  assert.equal(mounted.snapshot().values.at(-1), 1);
+  mounted.cleanups.forEach((cleanup) => cleanup());
+  const reduced = mountSplash(true);
+  await Promise.resolve();
+  assert.equal(reduced.snapshot().started, 0);
+  reduced.cleanups.forEach((cleanup) => cleanup());
+  for (const dispose of ["unmount", "dismiss"]) {
+    const late = mountSplash();
+    if (dispose === "unmount") late.cleanups.forEach((cleanup) => cleanup());
+    else late.scheduled[0].fn();
+    await Promise.resolve();
+    assert.equal(late.snapshot().started, 0);
+  }
+});
+
+test("visible branding uses the mascot instead of the old circle mark", () => {
+  for (const file of ["src/components/Ticker.tsx", "app/pro.tsx", "app/share-savings.tsx"]) {
+    const source = fs.readFileSync(file, "utf8");
+    assert.match(source, /<Mascot /);
+    assert.doesNotMatch(source, /assets\/images\/(?:logo-mark|logo-full|icon)\.png/);
+  }
 });
 
 test("native query focus pauses background reads and resumes on active, with cleanup", () => {

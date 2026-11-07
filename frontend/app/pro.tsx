@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ActivityIndicator, Image, Modal, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import MaterialCommunityIcons from "@react-native-vector-icons/material-design-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -105,7 +105,7 @@ export default function ProScreen() {
         </View>
 
         <View style={styles.brandRow}>
-          <Image source={require("@/assets/images/icon.png")} style={styles.logo} />
+          <Mascot width={64} height={74} />
           <View>
             <Text style={styles.brand}>Glitch Radar</Text>
             <Text style={styles.brandSub}>Dein Deal- & Preisfehler-Finder</Text>
@@ -277,7 +277,6 @@ const useStyles = makeStyles((c) => ({
     justifyContent: "center",
   },
   brandRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.md, marginBottom: spacing.lg },
-  logo: { width: 64, height: 64, borderRadius: 16 },
   brand: { fontFamily: fonts.displayBold, fontSize: 32, color: c.onSurface },
   brandSub: { fontFamily: fonts.textRegular, fontSize: 13, color: c.onSurfaceTertiary },
   title: { fontFamily: fonts.displayBold, fontSize: 34, lineHeight: 38, color: c.onSurface, textAlign: "center", paddingHorizontal: spacing.lg },

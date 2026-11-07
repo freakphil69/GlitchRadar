@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { AccessibilityInfo, Animated, StyleSheet, Text, useAnimatedValue, View } from "react-native";
 import * as SplashScreen from "expo-splash-screen";
 
 import { Mascot } from "@/src/components/Mascot";
@@ -9,16 +9,56 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const SHOW_MS = 1800;
 
-// Static intro for the low-overhead beta. Radar/glitch motion and sound are deferred.
+// One short native-driven reveal, never a loop; the radar rings remain static.
 export function AppSplash() {
   const { colors } = useTheme();
   const [visible, setVisible] = useState(true);
+  const reveal = useAnimatedValue(1);
+  const dismissed = useRef(false);
 
   useEffect(() => {
+    let mounted = true;
+    let motionDisabled = false;
+    let animation: Animated.CompositeAnimation | undefined;
+    const settle = () => {
+      animation?.stop();
+      reveal.setValue(1);
+    };
+    const subscription = AccessibilityInfo.addEventListener("reduceMotionChanged", (enabled) => {
+      motionDisabled = enabled;
+      if (enabled) settle();
+    });
+    AccessibilityInfo.isReduceMotionEnabled().then((reduceMotion) => {
+      if (!mounted || dismissed.current || reduceMotion || motionDisabled) return;
+      reveal.setValue(0);
+      animation = Animated.sequence(
+        [0.65, 0.25, 0.9, 0.6, 1].map((toValue) =>
+          Animated.timing(reveal, { toValue, duration: 70, useNativeDriver: true, isInteraction: false }),
+        ),
+      );
+      animation.start();
+    }).catch(() => { /* Keep the static logo if the accessibility check fails. */ });
+    return () => {
+      mounted = false;
+      subscription.remove();
+      animation?.stop();
+    };
+  }, [reveal]);
+
+  useEffect(() => {
+    dismissed.current = false;
     SplashScreen.hideAsync().catch(() => {});
-    const timer = setTimeout(() => setVisible(false), SHOW_MS);
-    return () => clearTimeout(timer);
-  }, []);
+    const timer = setTimeout(() => {
+      dismissed.current = true;
+      reveal.stopAnimation();
+      reveal.setValue(1);
+      setVisible(false);
+    }, SHOW_MS);
+    return () => {
+      dismissed.current = true;
+      clearTimeout(timer);
+    };
+  }, [reveal]);
 
   if (!visible) return null;
 
@@ -31,7 +71,17 @@ export function AppSplash() {
       <View style={styles.radar}>
         <View style={[styles.ring, { width: 266, height: 266, borderColor: colors.border }]} />
         <View style={[styles.ring, { width: 206, height: 206, borderColor: colors.border }]} />
-        <Mascot pose="neutral" width={190} height={220} />
+        <Animated.View
+          testID="splash-logo-reveal"
+          style={{
+            opacity: reveal.interpolate({ inputRange: [0, 0.25, 0.65, 1], outputRange: [0.15, 0.45, 0.75, 1] }),
+            transform: [{
+              translateX: reveal.interpolate({ inputRange: [0, 0.25, 0.6, 0.9, 1], outputRange: [-12, 9, -5, 3, 0] }),
+            }],
+          }}
+        >
+          <Mascot pose="neutral" width={190} height={220} />
+        </Animated.View>
       </View>
       <Text style={[styles.brand, { color: colors.brandPrimary, fontFamily: fonts.displayBold }]}>GLITCHRADAR</Text>
       <Text style={[styles.sub, { color: colors.muted, fontFamily: fonts.mono }]}>DEIN RADAR FÜR PREISFEHLER</Text>
