@@ -80,7 +80,7 @@ export function AppSplash() {
             }],
           }}
         >
-          <Mascot pose="neutral" width={190} height={220} />
+          <Mascot pose="crossed" width={190} height={220} />
         </Animated.View>
       </View>
       <Text style={[styles.brand, { color: colors.brandPrimary, fontFamily: fonts.displayBold }]}>GLITCHRADAR</Text>

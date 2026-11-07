@@ -42,7 +42,7 @@ test("all mascot poses use small bundled static assets without image fade", () =
     "react-native": { Image: "Image" },
   });
   let totalBytes = 0;
-  for (const pose of ["neutral", "proud", "offer"]) {
+  for (const pose of ["neutral", "proud", "offer", "crossed"]) {
     const node = Mascot({ pose, width: 104, height: 104 });
     assert.equal(node.props.source, `@/assets/images/mascot/${pose}.webp`);
     assert.equal(node.props.fadeDuration, 0);
@@ -53,7 +53,7 @@ test("all mascot poses use small bundled static assets without image fade", () =
     assert.ok(file.length < 40_000);
     totalBytes += file.length;
   }
-  assert.ok(totalBytes < 110_000, `Asset budget exceeded: ${totalBytes}`);
+  assert.ok(totalBytes < 150_000, `Asset budget exceeded: ${totalBytes}`);
 });
 
 function mountSplash(reduced = false) {
@@ -110,7 +110,7 @@ function mountSplash(reduced = false) {
     clearTimeout: (id) => cleared.push(id),
   });
   const tree = AppSplash();
-  assert.equal(elements(tree).find((n) => n.type === "Mascot").props.pose, "neutral");
+  assert.equal(elements(tree).find((n) => n.type === "Mascot").props.pose, "crossed");
   const cleanups = effects.map((effect) => effect());
   return {
     tree, scheduled, cleared, cleanups, changeMotion,
@@ -165,6 +165,28 @@ test("visible branding uses the mascot instead of the old circle mark", () => {
     assert.match(source, /<Mascot /);
     assert.doesNotMatch(source, /assets\/images\/(?:logo-mark|logo-full|icon)\.png/);
   }
+});
+
+test("the main ticker uses crossed-arm Otto instead of the previous logo", () => {
+  const { Ticker } = load("src/components/Ticker.tsx", {
+    react: { useEffect: () => {} },
+    "react-native": { View: "View", Text: "Text", Pressable: "Pressable" },
+    "react-native-reanimated": {
+      __esModule: true, default: { View: "AnimatedView" },
+      useSharedValue: (value) => ({ value }),
+      useAnimatedStyle: () => ({}),
+    },
+    "@/src/components/Mascot": { Mascot: "Mascot" },
+    "@/src/lib/format": { fmtClock: () => "", fmtMoney: () => "" },
+    "@/src/theme": theme,
+  });
+  const nodes = elements(Ticker({ activeCount: 3 }));
+  const logo = nodes.find((node) => node.type === "Mascot");
+  assert.ok(logo);
+  assert.equal(logo.props.pose, "crossed");
+  assert.ok(logo.props.width <= 32);
+  assert.ok(logo.props.height <= 40);
+  assert.equal(nodes.some((node) => node.type === "Image"), false);
 });
 
 test("native query focus pauses background reads and resumes on active, with cleanup", () => {

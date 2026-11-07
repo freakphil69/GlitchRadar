@@ -6,6 +6,7 @@ const SOURCES = {
   neutral: require("@/assets/images/mascot/neutral.webp"),
   proud: require("@/assets/images/mascot/proud.webp"),
   offer: require("@/assets/images/mascot/offer.webp"),
+  crossed: require("@/assets/images/mascot/crossed.webp"),
 } as const;
 
 export const Mascot = memo(function Mascot({

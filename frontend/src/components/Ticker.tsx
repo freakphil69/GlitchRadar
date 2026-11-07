@@ -9,8 +9,8 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { fmtClock, fmtMoney } from "@/src/lib/format";
-import { fonts, makeStyles, useTheme } from "@/src/theme";
 import { Mascot } from "@/src/components/Mascot";
+import { fonts, makeStyles, useTheme } from "@/src/theme";
 
 export function Ticker({
   activeCount,
@@ -35,7 +35,7 @@ export function Ticker({
   return (
     <View testID="ticker" style={styles.ticker}>
       <View testID="ticker-logo" accessible accessibilityLabel="GlitchRadar">
-        <Mascot width={30} height={36} />
+        <Mascot pose="crossed" width={28} height={36} />
       </View>
       <View style={styles.cell}>
         <Animated.View style={[styles.dot, dot]} />
