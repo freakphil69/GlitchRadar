@@ -1,0 +1,114 @@
+name: Isolated full test suite
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/full-suite.yml'
+permissions:
+  contents: read
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd 'mongosh --eval "db.adminCommand({ping:1})"'
+          --health-interval 10s --health-timeout 5s --health-retries 10
+    env:
+      MONGO_URL: mongodb://127.0.0.1:27017
+      DB_NAME: glitchradar_ci
+      JWT_SECRET: ci-only-isolated-test-secret-not-for-production
+      EMERGENT_LLM_KEY: ''
+      ENABLE_AI_SCORING: 'false'
+      GLITCHRADAR_TEST_URL: http://127.0.0.1:8000
+      PYTHONPATH: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install isolated test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install 'fastapi==0.110.1' 'uvicorn==0.25.0' 'pydantic>=2.6.4,<3' 'motor==3.7.1' python-dotenv email-validator pyjwt 'bcrypt==4.1.3' passlib 'python-jose[cryptography]' python-multipart httpx requests pytest pytest-asyncio mongomock-motor
+      - name: Start disposable backend
+        run: |
+          mkdir -p ci-results
+          python -m uvicorn server:app --app-dir backend --host 127.0.0.1 --port 8000 >ci-results/server.log 2>&1 &
+          echo $! >ci-results/server.pid
+          for i in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:8000/health; then exit 0; fi
+            sleep 1
+          done
+          cat ci-results/server.log
+          exit 1
+      - name: Run all collected backend tests against localhost only
+        run: |
+          python - <<'PY'
+          from urllib.parse import urlsplit
+          import requests
+          import pytest
+          original = requests.sessions.Session.request
+          def local_only(self, method, url, *args, **kwargs):
+              if urlsplit(url).hostname not in {'127.0.0.1', 'localhost', '::1'}:
+                  raise RuntimeError('CI blocked non-local test target: ' + str(url))
+              kwargs.setdefault('timeout', 30)
+              kwargs['allow_redirects'] = False
+              return original(self, method, url, *args, **kwargs)
+          requests.sessions.Session.request = local_only
+          raise SystemExit(pytest.main(['-c', '/dev/null', 'backend/tests', 'tests', '-ra', '--junitxml=ci-results/backend.xml']))
+          PY
+      - name: Upload backend results and server log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: ci-results/
+          retention-days: 7
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install locked frontend dependencies
+        run: |
+          corepack enable
+          yarn install --frozen-lockfile --non-interactive
+      - name: Run beta tests
+        id: beta
+        continue-on-error: true
+        run: |
+          mkdir -p ci-results
+          set -o pipefail
+          yarn test:beta 2>&1 | tee ci-results/beta.log
+      - name: Check TypeScript
+        id: types
+        continue-on-error: true
+        run: |
+          mkdir -p ci-results
+          set -o pipefail
+          yarn tsc --noEmit 2>&1 | tee ci-results/typescript.log
+      - name: Upload frontend results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-test-results
+          path: frontend/ci-results/
+          retention-days: 7
+      - name: Preserve failing test status
+        if: always()
+        env:
+          BETA_RESULT: ${{ steps.beta.outcome }}
+          TYPES_RESULT: ${{ steps.types.outcome }}
+        run: |
+          test "$BETA_RESULT" = success && test "$TYPES_RESULT" = success
