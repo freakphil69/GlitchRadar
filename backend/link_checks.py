@@ -1,4 +1,5 @@
 """Conservative purchase-link checks. Missing evidence is never a pass."""
+import ipaddress
 import json
 import re
 from datetime import datetime, timedelta, timezone
@@ -13,7 +14,41 @@ CHECK_TTL = timedelta(minutes=15)
 MAX_PAGE_BYTES = 2 * 1024 * 1024
 
 
+def valid_action_href(href):
+    if not isinstance(href, str):
+        return False
+    if any(ord(c) < 32 or ord(c) == 127 for c in href) or "\\" in href:
+        return False
+    href = href.strip()
+    if not href or href.startswith(("#", "//")) or any(c.isspace() for c in href):
+        return False
+    try:
+        target = urlsplit(href)
+        if target.scheme:
+            if target.scheme.lower() != "https" or not target.netloc or not target.hostname:
+                return False
+            if target.username is not None or target.password is not None:
+                return False
+            if target.port not in {None, 443}:
+                return False
+            host = target.hostname
+            try:
+                ipaddress.ip_address(host)
+            except ValueError:
+                pass
+            else:
+                return False
+            if host.lower() == "localhost" or host.lower().endswith(".localhost"):
+                return False
+            return True
+        return not target.netloc and bool(target.path)
+    except (ValueError, TypeError):
+        return False
+
+
 class SalePage(HTMLParser):
+    VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
+
     def __init__(self):
         super().__init__()
         self.scripts = []
@@ -24,26 +59,31 @@ class SalePage(HTMLParser):
 
     def handle_starttag(self, tag, attrs):
         attrs = dict(attrs)
-        hidden = (bool(self._tags and self._tags[-1][1])
-                  or "hidden" in attrs or attrs.get("aria-hidden") == "true"
-                  or bool(re.search(r"display\s*:\s*none|visibility\s*:\s*hidden", attrs.get("style", ""), re.I)))
-        if tag not in {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}:
-            self._tags.append((tag, hidden))
+        inherited = bool(self._tags and self._tags[-1][1])
+        blocked = (inherited or "hidden" in attrs or "inert" in attrs
+                   or tag == "template" or tag == "fieldset" and "disabled" in attrs
+                   or attrs.get("aria-hidden", "").strip().lower() == "true"
+                   or attrs.get("aria-disabled", "").strip().lower() == "true"
+                   or bool(re.search(r"display\s*:\s*none|visibility\s*:\s*(?:hidden|collapse)", attrs.get("style", ""), re.I)))
+        if tag not in self.VOID:
+            self._tags.append((tag, blocked))
         if tag == "script" and attrs.get("type", "").lower() == "application/ld+json":
             self._script = []
-        if ((tag in {"button", "a"} or attrs.get("role") == "button")
-                and not hidden and "disabled" not in attrs
-                and attrs.get("aria-disabled") != "true" and attrs.get("aria-hidden") != "true"
-                and not re.search(r"display\s*:\s*none", attrs.get("style", ""))):
-            self._button = (tag, [])
+        actionable = tag == "button" or tag == "a" and valid_action_href(attrs.get("href"))
+        if actionable and not blocked and "disabled" not in attrs and self._button is None:
+            self._button = (tag, [], len(self._tags))
 
     def handle_data(self, data):
         if self._script is not None:
             self._script.append(data)
-        if self._button is not None:
+        if self._button is not None and not (self._tags and self._tags[-1][1]):
             self._button[1].append(data)
 
     def handle_endtag(self, tag):
+        if (self._button is not None and tag == self._button[0]
+                and len(self._tags) == self._button[2]):
+            self.buttons.append(re.sub(r"\s+", " ", "".join(self._button[1])).strip())
+            self._button = None
         for i in range(len(self._tags) - 1, -1, -1):
             if self._tags[i][0] == tag:
                 del self._tags[i:]
@@ -51,9 +91,6 @@ class SalePage(HTMLParser):
         if tag == "script" and self._script is not None:
             self.scripts.append("".join(self._script))
             self._script = None
-        if self._button is not None and tag == self._button[0]:
-            self.buttons.append(" ".join(self._button[1]))
-            self._button = None
 
 
 def _nodes(value):
