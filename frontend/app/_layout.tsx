@@ -1,15 +1,20 @@
 import { QueryClientProvider } from "@tanstack/react-query";
+import { useEffect } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFonts } from "expo-font";
-import { Stack } from "expo-router";
+import * as Linking from "expo-linking";
+import * as Notifications from "expo-notifications";
+import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { LogBox, StyleSheet } from "react-native";
+import { Alert, LogBox, Platform, StyleSheet } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 
 import { AppSplash } from "@/src/components/AppSplash";
 import { ErrorBoundary } from "@/src/components/error-boundary";
 import { ToastProvider } from "@/src/components/Toast";
-import { AuthProvider } from "@/src/lib/auth";
+import { AuthProvider, useAuth } from "@/src/lib/auth";
+import { registerForPush } from "@/src/lib/push";
 import { initializeRevenueCat, SubscriptionProvider } from "@/src/lib/revenuecat";
 import { queryClient } from "@/src/query-client";
 import { useTheme } from "@/src/theme";
@@ -23,6 +28,70 @@ try {
   initializeRevenueCat();
 } catch (err) {
   console.warn("RevenueCat unavailable:", err);
+}
+
+// Push: foreground display + Android channel must exist before any push arrives (native only).
+if (Platform.OS !== "web") {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: false,
+    }),
+  });
+}
+if (Platform.OS === "android") {
+  Notifications.setNotificationChannelAsync("default", {
+    name: "Glitch-Alarm",
+    importance: Notifications.AndroidImportance.MAX,
+    sound: "default",
+  });
+}
+
+function openPushTarget(router: ReturnType<typeof useRouter>, data: Record<string, unknown> | undefined) {
+  const url = (data?.deeplink || data?.action_url) as string | undefined;
+  if (!url) return;
+  if (url.startsWith("http")) Linking.openURL(url);
+  else router.push(url as never);
+}
+
+// Registers the device for Glitch-Alarm pushes on every app open and after login (tokens rotate).
+function PushRegistrar() {
+  const { user } = useAuth();
+  const router = useRouter();
+  useEffect(() => {
+    registerForPush(user?.user_id);
+  }, [user?.user_id]);
+
+  useEffect(() => {
+    if (Platform.OS === "web") return;
+    const tapSub = Notifications.addNotificationResponseReceivedListener((r) =>
+      openPushTarget(router, r.notification.request.content.data),
+    );
+    Notifications.getLastNotificationResponseAsync().then((r) => {
+      if (r) openPushTarget(router, r.notification.request.content.data);
+    });
+    // Denied for good: nudge at most once a week towards the system settings.
+    (async () => {
+      const { status, canAskAgain } = await Notifications.getPermissionsAsync();
+      if (status !== "denied" || canAskAgain) return;
+      const last = await AsyncStorage.getItem("pushNudgeAt");
+      if (last && Date.now() - Number(last) <= 7 * 86_400_000) return;
+      const stamp = () => AsyncStorage.setItem("pushNudgeAt", String(Date.now()));
+      Alert.alert(
+        "Glitch-Alarm verpassen?",
+        "Erlaube Benachrichtigungen, damit wir dich bei frischen Preisfehlern sofort anpingen.",
+        [
+          { text: "Später", style: "cancel", onPress: stamp },
+          { text: "Einstellungen öffnen", onPress: () => stamp().then(() => Linking.openSettings()) },
+        ],
+      );
+    })();
+    return () => tapSub.remove();
+  }, [router]);
+  return null;
 }
 
 export default function RootLayout() {
@@ -61,6 +130,7 @@ export default function RootLayout() {
                   <Stack.Screen name="legal" />
                 </Stack>
                 <AppSplash />
+                <PushRegistrar />
               </ToastProvider>
             </KeyboardProvider>
             </AuthProvider>

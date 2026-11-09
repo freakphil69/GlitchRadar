@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ChipRow } from "@/src/components/ChipRow";
 import { GlitchAlarm } from "@/src/components/GlitchAlarm";
 import { TrialEndBanner } from "@/src/components/TrialEndBanner";
+import { BlackFridayBanner } from "@/src/components/BlackFridayBanner";
 import { GlitchCard } from "@/src/components/GlitchCard";
 import { POPULAR_SEARCHES, useRecentSearches } from "@/src/lib/recentSearches";
 import { Ticker } from "@/src/components/Ticker";
@@ -17,6 +18,7 @@ import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 const TYPE_CHIPS = [
   { key: "all", label: "ALLE" },
   { key: "delivery", label: "LIEFERDIENSTE" },
+  { key: "blackfriday", label: "BLACK FRIDAY" },
   { key: "price_error", label: "PREISFEHLER" },
   { key: "coupon", label: "GUTSCHEINE" },
   { key: "stack", label: "STAPEL" },
@@ -173,6 +175,10 @@ export default function RadarScreen() {
           ) : (
           <View style={{ gap: spacing.md }}>
             <TrialEndBanner />
+            <BlackFridayBanner
+              active={type === "blackfriday"}
+              onPress={() => setType(type === "blackfriday" ? "all" : "blackfriday")}
+            />
             <GlitchAlarm />
             <Pressable testID="radar-hof-banner" onPress={() => router.push("/hall-of-fame")} style={styles.hofBanner}>
               <MaterialCommunityIcons name="trophy" size={20} color={colors.warning} />

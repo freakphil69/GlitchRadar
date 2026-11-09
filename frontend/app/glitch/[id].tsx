@@ -23,6 +23,7 @@ import { useEnrich, useGlitch, useReportDead } from "@/src/lib/queries";
 import { useIsStashed, useStashActions } from "@/src/lib/stash";
 import { RISK_LABELS, TYPE_LABELS } from "@/src/lib/types";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
+import { DealChat } from "@/src/components/DealChat";
 
 const SECTION_CHIPS = [
   { key: "steps", label: "SCHRITTE" },
@@ -140,6 +141,8 @@ export default function GlitchDetailScreen() {
     <View style={styles.screen}>
       <ScrollView
         contentContainerStyle={{ paddingTop: insets.top + 8, paddingBottom: 180 + insets.bottom }}
+        keyboardShouldPersistTaps="handled"
+        automaticallyAdjustKeyboardInsets
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.headerRow}>
@@ -157,7 +160,13 @@ export default function GlitchDetailScreen() {
 
         <View style={styles.hero}>
           {glitch.image_url ? (
-            <Image source={{ uri: imgSrc(glitch.image_url) }} style={styles.heroImage} contentFit="contain" transition={200} />
+            <Image
+              source={{ uri: imgSrc(glitch.image_url, 800) }}
+              style={styles.heroImage}
+              contentFit="contain"
+              transition={200}
+              cachePolicy="memory-disk"
+            />
           ) : null}
           <Text style={styles.shop}>
             {glitch.shop} · {glitch.category.toUpperCase()}
@@ -338,6 +347,7 @@ export default function GlitchDetailScreen() {
             </Pressable>
           </View>
         )}
+        <DealChat glitchId={glitch.id} />
       </ScrollView>
 
       <View style={[styles.ctaWrap, { paddingBottom: insets.bottom + 12 }]}>

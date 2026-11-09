@@ -93,3 +93,27 @@
 - Countdown tickt nur in letzter Stunde sekündlich, sonst minütlich (Anzeige „X STD MM MIN“)
 - GlitchCard memo, Einblend-Animation nur erste 8 Karten, FlatList-Tuning
 - Backend: _expire_stale max. 1x/Minute
+
+## Iteration 14 (Performance 2)
+- /api/img?w= Thumbnails (PIL, JPEG q72, In-Memory-Cache), Karten nutzen w=200 (129KB->2KB), Detail w=800; expo-image cachePolicy memory-disk
+- /api/glitches max 60 Einträge, Beschreibung in Liste auf 220 Zeichen gekürzt (76KB statt 135KB)
+
+## OFFEN – vom User angefragte Integrationen (noch NICHT gebaut, User hat Fragen nicht beantwortet)
+- Black Friday: Countdown-Banner (BF 2026 = 27.11.) + Filter type=blackfriday (Regex black friday|cyber monday|black week)
+- Datenschutzerklärung als Text für Google Play (Basis: legal.tsx DATENSCHUTZ-Abschnitt; Konto-Löschung in App fehlt -> Google Play verlangt Löschoption!)
+- KI-Chat pro Deal (Claude Sonnet 5.5 via emergentintegrations, Streaming SSE)
+- Jev Text-Bewertung (Fake-Filter / Preisfehler-Score / Auto-Kategorie) – Playbook via integration_expert holen
+- Glitch-Alarm vorlesen: Emergent TTS (empfohlen) oder ElevenLabs (User-Key)
+- Sprach-Suche: Emergent STT (Mikrofon-Permission, app.json expo-audio microphonePermission aktuell false!)
+- Perplexity Live-Echtheitscheck (User-Key PERPLEXITY_API_KEY nötig)
+- PayPal-Trinkgeld (nur PayPal.me-Link, keine Abo-Zahlung – Store-Regeln)
+- Apple Sign-In (iOS, Pflicht wenn Google-Login auf iOS)
+- Emergent Push Notifications (google-services.json vom User nötig, nur nach Build testbar)
+
+## Iteration 15
+- Black Friday: type=blackfriday (BLACKFRIDAY_RE) + BlackFridayBanner (Countdown bis BF, 45 Tage vorher, live bis Cyber Monday), Chip BLACK FRIDAY
+- KI-Chat pro Deal: POST/GET /api/glitches/{id}/chat (SSE, claude-sonnet-5-5, db.deal_chats), DealChat.tsx auf Detailseite
+- Jev Fake-Filter: classify_fake() bei Ingestion -> fake_score/ai_classified; Liste blendet fake_score>=0.75 aus (backend/jev.py, typesafe-sdk)
+- Push (Emergent/SuprSend): backend/push.py (/api/register-push, send_push, broadcast_alarm -> 1 Push pro Scan für besten neuen Preisfehler), frontend src/lib/push.ts + PushRegistrar in _layout; app.json expo-notifications + googleServicesFile ./google-services.json (DATEI FEHLT NOCH – vom User anfordern!)
+- Datenschutzerklärung: /app/memory/DATENSCHUTZ.md (auch im ZIP)
+- OFFEN: Apple Sign-In, Perplexity (Key), PayPal-Trinkgeld (PayPal.me), ElevenLabs/TTS, STT-Sprachsuche, In-App-Konto-Löschung

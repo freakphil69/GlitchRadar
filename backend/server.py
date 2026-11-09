@@ -17,7 +17,9 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, field_validator
 from starlette.middleware.cors import CORSMiddleware
 
-from emergentintegrations.llm.chat import LlmChat, UserMessage
+from emergentintegrations.llm.chat import LlmChat, StreamDone, TextDelta, UserMessage
+from fastapi.responses import StreamingResponse
+from push import broadcast_alarm, build_push_router
 
 from urllib.parse import quote
 
@@ -411,26 +413,48 @@ IMG_HOSTS = ("static.mydealz.de", "www.dealdoktor.de", "dealdoktor.de", "static.
              "www.mytopdeals.net", "mytopdeals.net", "www.sparhamster.at", "sparhamster.at")
 
 
+_IMG_CACHE: "dict[tuple[str, int], tuple[bytes, str]]" = {}
+
+
 @api_router.get("/img")
-async def image_proxy(u: str):
-    # Web preview only: mydealz images send Cross-Origin-Resource-Policy: same-origin.
+async def image_proxy(u: str, w: int = 0):
+    # mydealz images send Cross-Origin-Resource-Policy: same-origin (web), and are often large:
+    # with ?w= we shrink them to a small thumbnail and keep it in memory.
     from urllib.parse import urlparse
     host = urlparse(u).hostname or ""
     if urlparse(u).scheme != "https" or host not in IMG_HOSTS:
         raise HTTPException(status_code=400, detail="Host nicht erlaubt")
+    w = max(0, min(w, 800))
+    cached = _IMG_CACHE.get((u, w))
+    if cached:
+        return Response(content=cached[0], media_type=cached[1], headers={"Cache-Control": "public, max-age=604800"})
     async with httpx.AsyncClient(timeout=15, follow_redirects=True) as hc:
         r = await hc.get(u, headers={"User-Agent": "Mozilla/5.0 (compatible; GlitchRadar/1.0)"})
     if r.status_code != 200 or not r.headers.get("content-type", "").startswith("image/"):
         raise HTTPException(status_code=404, detail="Bild nicht gefunden")
-    return Response(content=r.content, media_type=r.headers["content-type"],
-                    headers={"Cache-Control": "public, max-age=86400"})
+    content, ctype = r.content, r.headers["content-type"]
+    if w:
+        try:
+            from io import BytesIO
+            from PIL import Image as PILImage
+            im = PILImage.open(BytesIO(content)).convert("RGB")
+            im.thumbnail((w, w))
+            buf = BytesIO()
+            im.save(buf, "JPEG", quality=72, optimize=True)
+            content, ctype = buf.getvalue(), "image/jpeg"
+        except Exception:
+            pass
+    if len(_IMG_CACHE) > 400:
+        _IMG_CACHE.clear()
+    _IMG_CACHE[(u, w)] = (content, ctype)
+    return Response(content=content, media_type=ctype, headers={"Cache-Control": "public, max-age=604800"})
 
 
 @api_router.get("/glitches")
 async def list_glitches(type: str = "all", sort: str = "new", min_discount: int = 0,
                         shops: str = "", categories: str = "", q: str = ""):
     await _expire_stale()
-    query: dict = {"status": "active"}
+    query: dict = {"status": "active", "fake_score": {"$not": {"$gte": FAKE_THRESHOLD}}}
     term = q.strip()[:80]
     if term:
         words = [re.escape(w) for w in term.split() if w][:6]
@@ -440,7 +464,12 @@ async def list_glitches(type: str = "all", sort: str = "new", min_discount: int 
             {"description": {"$regex": w, "$options": "i"}},
             {"category": {"$regex": w, "$options": "i"}},
         ]} for w in words]
-    if type == "delivery":
+    if type == "blackfriday":
+        query.setdefault("$and", []).append({"$or": [
+            {"title": {"$regex": BLACKFRIDAY_RE, "$options": "i"}},
+            {"description": {"$regex": BLACKFRIDAY_RE, "$options": "i"}},
+        ]})
+    elif type == "delivery":
         query.setdefault("$and", []).append({"$or": [
             {"source_label": {"$regex": "LIEFER|FAST FOOD"}},
             {"title": {"$regex": DELIVERY_RE, "$options": "i"}},
@@ -462,16 +491,21 @@ async def list_glitches(type: str = "all", sort: str = "new", min_discount: int 
         "discount": [("discount_pct", -1), ("published_at", -1)],
         "risk": [("success_rate", -1), ("published_at", -1)],
     }.get(sort, [("published_at", -1)])
-    docs = await db.glitches.find(query).sort(order).to_list(100)
+    docs = await db.glitches.find(query).sort(order).to_list(60)
     out = []
     for d in docs:
         g = GlitchDoc.from_mongo(d)
         if g:
-            out.append(g.out())
+            item = g.out()
+            # List view only shows 2 lines; the detail endpoint returns the full text.
+            if len(item.get("description") or "") > 220:
+                item["description"] = item["description"][:217].rstrip() + "…"
+            out.append(item)
     return out
 
 
 ALARM_MINUTES = 15
+BLACKFRIDAY_RE = r"black ?friday|black ?week|cyber ?monday|black ?deals|#bf\b|bf-?deal|black ?november|singles ?day"
 DELIVERY_RE = (r"lieferando|wolt|uber ?eats|foodora|domino|burger ?king|mc ?donald|kfc|subway|pizza|"
                r"flink|getir|knuspr|picnic|hellofresh|marley ?spoon|too ?good ?to ?go|lieferdienst|lieferservice|fast ?food")
 
@@ -536,6 +570,63 @@ async def vote_glitch(glitch_id: str, body: VoteIn):
         raise HTTPException(status_code=404, detail="Glitch nicht gefunden")
     g = GlitchDoc.from_mongo(await db.glitches.find_one({"_id": _parse_oid(glitch_id)}))
     return g.out()
+
+
+CHAT_MODEL = ("anthropic", "claude-sonnet-5-5")
+
+
+class ChatIn(BaseModel):
+    session_id: str = Field(min_length=8, max_length=64)
+    message: str = Field(min_length=1, max_length=500)
+
+
+@api_router.get("/glitches/{glitch_id}/chat")
+async def chat_history(glitch_id: str, session_id: str):
+    rows = await db.deal_chats.find({"glitch_id": glitch_id, "session_id": session_id}, {"_id": 0}) \
+        .sort([("created_at", 1)]).to_list(50)
+    return [{"role": r["role"], "text": r["text"]} for r in rows]
+
+
+@api_router.post("/glitches/{glitch_id}/chat")
+async def chat_about_deal(glitch_id: str, body: ChatIn):
+    g = GlitchDoc.from_mongo(await db.glitches.find_one({"_id": _parse_oid(glitch_id)}))
+    if not g:
+        raise HTTPException(status_code=404, detail="Glitch nicht gefunden")
+    history = await db.deal_chats.find({"glitch_id": glitch_id, "session_id": body.session_id}) \
+        .sort([("created_at", -1)]).to_list(10)
+    past = "\n".join(f"{'Nutzer' if h['role'] == 'user' else 'Assistent'}: {h['text']}" for h in reversed(history))
+    system = (
+        "Du bist der GlitchRadar-Deal-Assistent. Antworte auf Deutsch, kurz (max. 5 Sätze), ehrlich und praktisch. "
+        "Erfinde keine Fakten; wenn du etwas nicht weißt, sag es und verweise auf den Original-Beitrag. "
+        f"\n\nDEAL: {g.title}\nShop: {g.shop}\nTyp: {g.type}\nPreis: {g.glitched_price} € (statt {g.original_price} €), "
+        f"Rabatt {g.discount_pct} %\nCode: {g.coupon_code or '-'}\nRisiko: {g.risk_level} – {g.risk_note}\n"
+        f"Beschreibung: {(g.description or '')[:1200]}\n"
+        + (f"\nBISHERIGER CHAT:\n{past}" if past else "")
+    )
+    await db.deal_chats.insert_one({"glitch_id": glitch_id, "session_id": body.session_id, "role": "user",
+                                    "text": body.message, "created_at": _now()})
+    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"deal-{body.session_id}", system_message=system) \
+        .with_model(*CHAT_MODEL)
+
+    async def events():
+        parts: List[str] = []
+        try:
+            async for ev in chat.stream_message(UserMessage(text=body.message)):
+                if isinstance(ev, TextDelta):
+                    parts.append(ev.content)
+                    yield f"data: {json.dumps({'delta': ev.content})}\n\n"
+                elif isinstance(ev, StreamDone):
+                    break
+        except Exception as e:
+            logger.warning(f"Deal-Chat fehlgeschlagen: {e}")
+            yield f"data: {json.dumps({'error': 'Die KI ist gerade nicht erreichbar. Bitte gleich nochmal versuchen.'})}\n\n"
+        if parts:
+            await db.deal_chats.insert_one({"glitch_id": glitch_id, "session_id": body.session_id,
+                                            "role": "assistant", "text": "".join(parts), "created_at": _now()})
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(events(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @api_router.get("/glitches/{glitch_id}")
@@ -605,6 +696,30 @@ DEFAULT_RISK = {
 }
 
 
+FAKE_THRESHOLD = 0.75
+
+
+async def classify_fake(texts: List[str]) -> List[dict]:
+    """Jev yes/no: is this clickbait / pure advertising / not a real deal? Never blocks ingestion."""
+    from typesafe_sdk import Noul, TypeSafeError
+    from jev import get_jev_client
+    out: List[dict] = []
+    for t in texts:  # one at a time (free plans allow a single concurrent request)
+        try:
+            r = await get_jev_client().system_one(
+                model="jev-latest",
+                state={"deal": t},
+                questions={"fake": Noul(instructions=(
+                    "Is this German deal post fake, clickbait, a pure advertisement/sponsored post, "
+                    "a giveaway/contest, or otherwise NOT a real buyable discount, coupon or price error?"))},
+            )
+            out.append({"fake_score": round(r.nouls["fake"].noul, 3), "ai_classified": True})
+        except (TypeSafeError, Exception) as e:  # fallback: keep the deal, flag as unclassified
+            logger.warning(f"Jev-Klassifizierung fehlgeschlagen: {e}")
+            out.append({"fake_score": None, "ai_classified": False})
+    return out
+
+
 async def ingest_feeds() -> dict:
     scan = ScanDoc()
     await db.scans.insert_one(scan.to_mongo())
@@ -636,14 +751,22 @@ async def ingest_feeds() -> dict:
             scores.append(sc)
 
     docs = []
-    for it, sc in zip(fresh, scores):
+    fake_scores = await classify_fake([f"{it['title']} | {it['shop']} | {(it.get('description') or '')[:300]}" for it in fresh])
+    for it, sc, fk in zip(fresh, scores, fake_scores):
         docs.append(GlitchDoc(**it, risk_level=sc["risk_level"], success_rate=sc["success_rate"],
-                              risk_note=sc["risk_note"], scout_model=SCORER_MODEL).to_mongo())
+                              risk_note=sc["risk_note"], scout_model=SCORER_MODEL).to_mongo() | fk)
     if docs:
         try:
             await db.glitches.insert_many(docs, ordered=False)
         except Exception as e:  # duplicate source_url races are harmless
             logger.warning(f"Insert teilweise übersprungen: {e}")
+        # Push only the single best new price error per scan (no spam), skipping likely fakes.
+        hot = [d for d in docs if d.get("type") == "price_error" and (d.get("fake_score") or 0) < FAKE_THRESHOLD]
+        if hot:
+            best = max(hot, key=lambda d: d.get("discount_pct") or 0)
+            price = f" für {best['glitched_price']:.2f} €".replace(".", ",") if best.get("glitched_price") is not None else ""
+            await broadcast_alarm(db, str(best["_id"]), f"🚨 Glitch-Alarm: {best.get('shop') or 'Neuer Preisfehler'}",
+                                  f"{best['title'][:90]}{price}")
 
     total = round(sum((d["original_price"] - d["glitched_price"]) for d in docs
                       if d.get("original_price") and d.get("glitched_price") is not None), 2)
@@ -772,6 +895,7 @@ async def hall_of_fame(limit: int = 20):
 
 app.include_router(api_router)
 app.include_router(auth_router)
+app.include_router(build_push_router(db))
 
 app.add_middleware(
     CORSMiddleware,

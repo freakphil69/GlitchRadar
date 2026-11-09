@@ -69,7 +69,14 @@ export const GlitchCard = memo(function GlitchCard({ glitch, index = 0 }: { glit
 
         <View style={styles.bodyRow}>
           {glitch.image_url ? (
-            <Image source={{ uri: imgSrc(glitch.image_url) }} style={styles.thumb} contentFit="cover" transition={150} />
+            <Image
+              source={{ uri: imgSrc(glitch.image_url, 200) }}
+              style={styles.thumb}
+              contentFit="cover"
+              transition={150}
+              cachePolicy="memory-disk"
+              recyclingKey={glitch.id}
+            />
           ) : null}
           <View style={{ flex: 1, gap: 4 }}>
             <Text style={styles.title} numberOfLines={2}>
