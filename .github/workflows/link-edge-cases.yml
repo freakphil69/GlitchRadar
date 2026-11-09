@@ -1,0 +1,32 @@
+name: Link checker edge cases
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'backend/link_checks.py'
+      - 'backend/http_limits.py'
+      - 'backend/tests/test_link_edge_cases.py'
+      - 'backend/tests/test_parser_integration.py'
+      - '.github/workflows/link-edge-cases.yml'
+permissions:
+  contents: read
+jobs:
+  edge-cases:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install checker test dependencies
+        run: python -m pip install pytest httpx
+      - name: Run production checker regressions
+        run: python -m pytest -c /dev/null -ra backend/tests/test_link_edge_cases.py backend/tests/test_parser_integration.py --junitxml=link-edge-results.xml
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: link-edge-results
+          path: link-edge-results.xml
+          retention-days: 7
