@@ -62,7 +62,7 @@ export function GlitchCard({ glitch, index = 0 }: { glitch: Glitch; index?: numb
           <Text style={styles.shop} numberOfLines={1}>{glitch.shop}</Text>
           <View style={styles.riskRow}>
             <View style={[styles.riskDot, { backgroundColor: riskColor }]} />
-            <Text style={styles.riskText}>{RISK_LABELS[glitch.risk_level]} · {glitch.success_rate}%</Text>
+            <Text style={styles.riskText}>{RISK_LABELS[glitch.risk_level]} · ungeprüft</Text>
           </View>
         </View>
 

@@ -14,7 +14,12 @@ from typing import Optional
 
 import httpx
 
+from http_limits import bounded_get
+
 logger = logging.getLogger(__name__)
+MAX_FEED_BYTES = 2 * 1024 * 1024
+MAX_FEED_ITEMS = 100
+FEED_CONCURRENCY = 2
 
 USER_AGENT = "Mozilla/5.0 (compatible; GlitchRadar/1.0; +https://glitchradar.app)"
 
@@ -40,12 +45,14 @@ NS = {
 }
 
 TEMP_RE = re.compile(r"^\s*(-?\d{1,5})°\s*-\s*")
-PRICE_RE = r"(\d{1,5}(?:[.,]\d{1,2})?)\s*(?:€|EUR|Euro)"
+NUMBER_RE = (r"(?:\d{1,3}(?:[.\u00a0\u202f ]\d{3})+(?:,\d{1,2})?"
+             r"|\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?|\d+(?:[.,]\d{1,2})?)")
+PRICE_RE = rf"(?<![\d.,])({NUMBER_RE})(?![\d.,])\s*(?:€|EUR|Euro)"
 STATT_RE = re.compile(r"(?:statt|UVP|vorher|sonst)\s*(?:ca\.\s*)?" + PRICE_RE, re.I)
 FOR_RE = re.compile(r"(?:für|nur|ab|jetzt)\s*(?:nur\s*)?" + PRICE_RE, re.I)
 PCT_RE = re.compile(r"(\d{1,2})\s*%")
 CODE_RE = re.compile(
-    r"(?:Gutschein-?code|Rabatt-?code|Promo-?code|Code|Gutschein)\s*[:„\"']?\s*(?:<strong>)?\s*([A-Z0-9][A-Z0-9\-]{3,19})\b"
+    r"(?:Gutschein-?code|Rabatt-?code|Promo-?code|Code|Gutschein)\s*[:„\"']?\s*(?:<strong>)?\s*([A-Z0-9][A-Z0-9\-]{1,19})\b"
 )
 TAG_RE = re.compile(r"<[^>]+>")
 WS_RE = re.compile(r"\s+")
@@ -70,11 +77,21 @@ def _to_text(raw: str) -> str:
 def _price(v: Optional[str]) -> Optional[float]:
     if not v:
         return None
-    m = re.search(r"\d{1,5}(?:[.,]\d{1,2})?", v)
+    m = re.search(rf"(?<![\d.,]){NUMBER_RE}(?![\d.,])", str(v))
     if not m:
         return None
     try:
-        return float(m.group(0).replace(".", "").replace(",", ".") if "," in m.group(0) else m.group(0))
+        number = re.sub(r"[\u00a0\u202f ]", "", m.group(0))
+        if "." in number and "," in number:
+            decimal, grouping = (",", ".") if number.rfind(",") > number.rfind(".") else (".", ",")
+            number = number.replace(grouping, "").replace(decimal, ".")
+        elif "," in number or "." in number:
+            sep = "," if "," in number else "."
+            if len(number.rsplit(sep, 1)[1]) == 3:
+                number = number.replace(sep, "")
+            else:
+                number = number.replace(sep, ".")
+        return float(number)
     except ValueError:
         return None
 
@@ -85,7 +102,8 @@ def _classify(default_type: Optional[str], text: str) -> str:
         return "price_error"
     if "cashback" in t:
         return "cashback"
-    if "kombinier" in t or "stapel" in t or "coupon-kombi" in t:
+    combinable = re.sub(r"\b(?:nicht|keine?|ohne)\b[^.!?\n]{0,80}\b(?:kombinier\w*|stapel\w*)", "", t)
+    if "kombinier" in combinable or "stapel" in combinable or "coupon-kombi" in combinable:
         return "stack"
     if "versandkostenfrei" in t or "gratis versand" in t or "kostenloser versand" in t:
         return "shipping"
@@ -166,6 +184,8 @@ def _parse_item(it: ET.Element, source: str, label: str, default_type: Optional[
         "glitched_price": price,
         "discount_pct": discount,
         "coupon_code": code,
+        "product_id": (merchant_el.get("gtin") or merchant_el.get("ean") or merchant_el.get("sku")) if merchant_el is not None else None,
+        "url": (merchant_el.get("offerUrl") or merchant_el.get("url")) if merchant_el is not None else None,
         "image_url": image,
         "source": source,
         "source_label": label,
@@ -177,14 +197,15 @@ def _parse_item(it: ET.Element, source: str, label: str, default_type: Optional[
 
 async def _fetch(client: httpx.AsyncClient, url: str, source: str, label: str, default_type: Optional[str]) -> list:
     try:
-        res = await client.get(url)
-        res.raise_for_status()
-        root = ET.fromstring(res.content)
+        _, content = await bounded_get(client, url, MAX_FEED_BYTES)
+        root = ET.fromstring(content)
     except Exception as e:
         logger.warning(f"Feed {url} fehlgeschlagen: {e}")
         return []
     out = []
-    for it in root.findall(".//item"):
+    for index, it in enumerate(root.iter("item")):
+        if index >= MAX_FEED_ITEMS:
+            break
         try:
             parsed = _parse_item(it, source, label, default_type)
         except Exception as e:
@@ -197,8 +218,12 @@ async def _fetch(client: httpx.AsyncClient, url: str, source: str, label: str, d
 
 async def fetch_all_feeds() -> tuple[list, int]:
     """Returns (deduplicated items, number of feeds that answered)."""
+    slots = asyncio.Semaphore(FEED_CONCURRENCY)
     async with httpx.AsyncClient(timeout=20, follow_redirects=True, headers={"User-Agent": USER_AGENT}) as client:
-        results = await asyncio.gather(*[_fetch(client, *f) for f in FEEDS])
+        async def fetch_one(feed):
+            async with slots:
+                return await _fetch(client, *feed)
+        results = await asyncio.gather(*(fetch_one(feed) for feed in FEEDS))
     seen, items = set(), []
     for batch in results:
         for it in batch:

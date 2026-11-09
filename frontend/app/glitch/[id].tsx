@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -20,6 +20,7 @@ import { Countdown } from "@/src/components/Countdown";
 import { useToast } from "@/src/components/Toast";
 import { fmtDateTime, fmtMoney, fmtPrice, imgSrc } from "@/src/lib/format";
 import { useEnrich, useGlitch, useReportDead } from "@/src/lib/queries";
+import { offerTarget } from "@/src/lib/offer-target";
 import { useIsStashed, useStashActions } from "@/src/lib/stash";
 import { RISK_LABELS, TYPE_LABELS } from "@/src/lib/types";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -44,17 +45,8 @@ export default function GlitchDetailScreen() {
   const stashed = useIsStashed(id);
   const actions = useStashActions();
   const [section, setSection] = useState("steps");
-  const autoEnrichRef = useRef<string | null>(null);
-
+  const [opening, setOpening] = useState(false);
   const glitch = q.data;
-
-  useEffect(() => {
-    if (!glitch || glitch.enriched) return;
-    if (autoEnrichRef.current === glitch.id || enrich.isPending) return;
-    autoEnrichRef.current = glitch.id;
-    enrich.mutate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [glitch?.id, glitch?.enriched]);
 
   const retryEnrich = () => {
     enrich.mutate();
@@ -77,15 +69,24 @@ export default function GlitchDetailScreen() {
     toast(`Code ${glitch.coupon_code} kopiert`, "success");
   };
 
-  const isAd = !!glitch?.affiliate_url && glitch.affiliate_url !== glitch.url;
+  const target = glitch ? offerTarget(glitch) : null;
+  const isAd = !!target?.purchase && !!glitch?.affiliate_url && glitch.affiliate_url !== glitch.url;
 
-  const onShop = () => {
-    if (!glitch) return;
-    const link =
-      glitch.affiliate_url ??
-      glitch.url ??
-      glitch.source_url;
-    WebBrowser.openBrowserAsync(link);
+  const onShop = async () => {
+    if (!glitch || opening) return;
+    setOpening(true);
+    try {
+      const latest = await q.refetch();
+      if (latest.isError || !latest.data) throw new Error("Aktuelle Zielprüfung nicht erreichbar.");
+      const checked = offerTarget(latest.data);
+      if (!checked.url) throw new Error("Kein gültiges Ziel verfügbar.");
+      if (!checked.purchase) toast("Kein freigegebener Kauf-Link. Der Original-Beitrag wird geöffnet.", "info");
+      await WebBrowser.openBrowserAsync(checked.url);
+    } catch {
+      toast("Ziel derzeit nicht prüfbar. Bitte später erneut versuchen.", "error");
+    } finally {
+      setOpening(false);
+    }
   };
 
   const onStash = () => {
@@ -187,8 +188,8 @@ export default function GlitchDetailScreen() {
               <Age publishedAt={glitch.published_at} size="lg" />
             )}
             <View style={styles.successBox}>
-              <Text style={styles.successLabel}>TREFFERQUOTE</Text>
-              <Text style={[styles.successValue, { color: riskColor }]}>{glitch.success_rate}%</Text>
+              <Text style={styles.successLabel}>HÄNDLERZIEL</Text>
+              <Text style={styles.successValue}>{target?.purchase ? "SEITE GEPRÜFT" : "UNGEPRÜFT"}</Text>
             </View>
           </View>
 
@@ -199,6 +200,12 @@ export default function GlitchDetailScreen() {
             </View>
           ) : null}
         </View>
+
+        {glitch.price_conflict ? (
+          <View style={styles.deadBanner} testID="detail-price-conflict">
+            <Text style={styles.deadText}>PREIS WIDERSPRÜCHLICH. ORIGINAL PRÜFEN.</Text>
+          </View>
+        ) : null}
 
         <Pressable
           testID="detail-verify-source"
@@ -271,7 +278,12 @@ export default function GlitchDetailScreen() {
                 ) : null}
               </>
             ) : (
-              <Text style={styles.stateText}>Kein Plan verfügbar.</Text>
+              <View style={styles.center}>
+                <Text style={styles.stateText}>Original-Beitrag und Bedingungen vor dem Kauf prüfen. Eine optionale KI-Analyse bestätigt keine Kaufbarkeit.</Text>
+                <Pressable testID="enrich-request-button" onPress={retryEnrich} style={styles.stateButton}>
+                  <Text style={styles.stateButtonText}>OPTIONALE ANALYSE ANFORDERN</Text>
+                </Pressable>
+              </View>
             )}
           </View>
         ) : section === "risk" ? (
@@ -282,16 +294,7 @@ export default function GlitchDetailScreen() {
                 <Text style={[styles.riskBadgeText, { color: riskColor }]}>{RISK_LABELS[glitch.risk_level]}</Text>
               </View>
             </View>
-            <View style={styles.successBarBg}>
-              <View
-                style={{
-                  width: `${Math.min(100, Math.max(0, glitch.success_rate))}%`,
-                  height: "100%",
-                  borderRadius: radius.pill,
-                  backgroundColor: riskColor,
-                }}
-              />
-            </View>
+            <Text style={styles.bodyText}>Geschätzte Risikobewertung, keine gemessene Erfolgsquote und keine Kaufbestätigung.</Text>
             <Text style={styles.bodyText}>{glitch.risk_note || "Keine Risikobewertung vorhanden."}</Text>
             {glitch.risk_analysis ? <Text style={styles.bodyText}>{glitch.risk_analysis}</Text> : null}
             {glitch.time_window_note ? (
@@ -356,10 +359,10 @@ export default function GlitchDetailScreen() {
             <MaterialCommunityIcons name="skull-outline" size={18} color={colors.error} />
             <Text style={[styles.secondaryText, { color: colors.error }]}>TOT</Text>
           </Pressable>
-          <Pressable testID="detail-shop-button" onPress={onShop} style={[styles.secondaryBtn, { flex: 1 }]}>
+          <Pressable testID="detail-shop-button" disabled={opening} onPress={onShop} style={[styles.secondaryBtn, { flex: 1 }]}>
             <MaterialCommunityIcons name="storefront-outline" size={18} color={colors.onSurfaceSecondary} />
             <Text style={[styles.secondaryText, { color: colors.onSurfaceSecondary }]}>
-              {glitch.affiliate_url ?? glitch.url ? "ZUM ANGEBOT" : "ZUM ORIGINAL-BEITRAG"}
+              {opening ? "ZIEL WIRD GEPRÜFT…" : target?.purchase ? "ZUR GEPRÜFTEN SEITE" : "ZUM ORIGINAL-BEITRAG"}
             </Text>
             {isAd ? <Text testID="detail-ad-label" style={styles.adTag}>ANZEIGE</Text> : null}
           </Pressable>

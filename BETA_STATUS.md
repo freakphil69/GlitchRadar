@@ -1,16 +1,36 @@
 # GlitchRadar: Beta-Prüfstand
 
-Stand: 9. November 2026. Ziel ist ein zuverlässiger Start und der Kernablauf „Funde laden, suchen, öffnen und zur richtigen Quelle gelangen“. Die Beta-Korrekturen wurden mit dem aktuellen Hauptzweig zusammengeführt und gemeinsam lokal geprüft. Dieser Stand ist keine Freigabe zur Veröffentlichung.
+Stand: 9. November 2026. Ziel ist ein zuverlässiger Start und der Kernablauf „Funde laden, suchen, öffnen und zur richtigen Quelle gelangen“. Die Beta-Korrekturen wurden mit dem Hauptzweig zusammengeführt und gemeinsam lokal geprüft. Eine anschließende Prüfung von 40 echten Angeboten ist dokumentiert, aber die Beta bleibt wegen Angebotsfehlern, unvollständiger Kaufabnahme und eines kritischen Speicherbefunds gesperrt.
+
+## Aktueller Ressourcen- und Live-Befund
+
+Nach der zwischenzeitlichen 404-Phase ist die Vorschau bei einem erneuten ungecachten Abruf am 9. November wieder erreichbar. Auch die Emergent-Codeansicht wurde wieder verfügbar; die separate Web-IDE verlangt jedoch eine Anmeldung mit dem Projektpasswort. Der aktuelle Vorschau-Code enthält zusätzliche Dateien wie `jev.py`, die nicht im zusammengeführten GitHub-Stand enthalten sind. Vor einer Übernahme müssen diese Unterschiede erhalten und abgeglichen werden; ein blindes Überschreiben ist keine zulässige Abkürzung. ([Vorschau-API](https://error-scout-20.preview.emergentagent.com/api/glitches), [Emergent-Codeansicht](https://app.emergent.sh/chat))
+
+## Korrekturen nach der echten Stichprobe
+
+Im lokalen Quellcode sind inzwischen die zentrale Kauf-Link-Sperre, getrennte Affiliate-Nachweise, begrenzte Nachprüfungen und die erneute API-Prüfung vor dem Öffnen umgesetzt. Fehlende oder veraltete Nachweise geben nur einen ungeprüften Originalbeitrag frei; eine geprüfte Verkaufsseite ist ausdrücklich keine Kauf- oder Liefergarantie. Die Einzelregeln und Grenzen stehen in `LINK_CHECK_POLICY.md`.
+
+Zusätzlich wurden Tausenderpreise, kurze Codes, falsch als kombinierbar gelesene Negationen, alte widersprüchliche Preisanzeigen und automatisch beim Öffnen gestartete KI-Analysen korrigiert. Feed- und Bildpuffer sowie die parallelen Downloads sind begrenzt. Eine Wirkung auf den Speicherverbrauch des veröffentlichten Servers wurde noch nicht gemessen.
+
+Die Änderungen sind noch nicht im aktuellen Testraum verifiziert. Die bestehenden 40 realen Angebotsprüfungen werden nicht durch neue Offline-Fixtures oder Unit-Tests zu bestandenen Kaufprüfungen erklärt.
+
+Der abschließende lokale Lauf nach diesen Änderungen besteht 43 Backend-Tests für Kernablauf, KI-Kostenbremse, Feed-Regressionen und Linkfreigabe sowie fünf HTML-Bereinigungstests. Alle 33 Frontend-Tests, TypeScript, gezieltes Linting der geänderten Oberflächen und der Android-JavaScript-/Asset-Export bestehen. Versteckte Kaufaktionen, verneinte Kauftexte und mehrdeutige Produktlisten wurden zunächst als fehlschlagende Gegenproben reproduziert und anschließend abgesichert. Auch dieser Export ist kein signiertes AAB und kein Android-Geräte-/Store-Test.
+
+Das Monitoring des veröffentlichten Emergent-Projekts „glitchradar“ zeigte CPU **24 %**, Peak **30 %**, aber Arbeitsspeicher **100 %**, Peak **100 %**, als „Critical“ markiert. Die Anzeige liefert damit einen konkreten Speicherbefund statt eines Nachweises für eine aktuell hohe CPU-Last; Antwortzeit und Fehlerrate zeigten keine Zahlen. Eine Behebung oder eine grüne Laufzeit ist nicht bestätigt. ([Emergent-Monitoring](https://app.emergent.sh/chat))
+
+Beim früheren Diagnoseversuch funktionierte die Anmeldung zu Emergent, die Codeansicht blieb aber zunächst im Schlaf-/„Resuming…“-Zustand ohne zugängliche Prozessdiagnose. Sie ist wie oben beschrieben inzwischen wieder verfügbar. Es wurde keine Laufzeitkonfiguration geändert und kein Upgrade, Credit-Kauf oder zusätzlicher KI-Buildauftrag ausgelöst; eine bloße Reduzierung von CPU oder Polling wird nicht als nachgewiesene Lösung des Speicherproblems ausgegeben. ([Emergent-Projekt](https://app.emergent.sh/chat))
+
+Während der echten Angebotsprüfung waren zunächst 19 Detailantworten korrekt abrufbar. Danach schlugen die weiteren 21 Detailprüfungen fehl; bei direkten Kontrollabrufen lieferten sowohl die gesamte Angebotsliste als auch ein zuvor funktionierendes Detail HTTP 404. Die Ursache dieses Vorschau-Ausfalls ist nicht nachgewiesen und wird nicht pauschal dem Speicher oder fehlenden Credits zugeschrieben. ([Angebotsliste](https://error-scout-20.preview.emergentagent.com/api/glitches), [zuvor lesbares Detail](https://error-scout-20.preview.emergentagent.com/api/glitches/6af1a08feea38b93775b2783))
 
 ## Zusammenführung mit main
 
-Ausgangspunkt ist `main` bei `969466f` und `beta-core` bei `5b785e0`. Zusammengeführt werden die Beta-Korrekturen einschließlich Sparbetrieb, präziser Angebotsziele, Timeout-Absicherung und Maskottchen mit den neueren Hauptzweig-Änderungen an RevenueCat, `eas.json` und dem Paketnamen `glitchradar.app`. Es wird kein Zweig erzwungen überschrieben.
+Ausgangspunkt waren `main` bei `969466f` und `beta-core` bei `5b785e0`. Die Zusammenführung ist als Commit `d303075329147dee13ce954e0598f11e90281cbf` auf `main` abgeschlossen. Sie integriert Sparbetrieb, präzise Angebotsziele, Timeout-Absicherung und Maskottchen mit den neueren Hauptzweig-Änderungen an RevenueCat, `eas.json` und dem Paketnamen `glitchradar.app`; kein Zweig wurde erzwungen überschrieben. ([Merge-Commit](https://github.com/freakphil69/GlitchRadar/commit/d303075329147dee13ce954e0598f11e90281cbf), [PR #1](https://github.com/freakphil69/GlitchRadar/pull/1))
 
 Der einzige Textkonflikt lag in `frontend/src/lib/revenuecat.tsx`. Die gemeinsame Lösung erhält beide Absichten: Nur der Schlüssel der jeweiligen Plattform wird benötigt; fehlende Store-Konfiguration blockiert den kostenlosen App-Kern nicht. Nach erfolgreicher SDK-Konfiguration werden beide Bereitschaftsmerkmale gesetzt. SDK-Abfragen, Listener, Kauf und Wiederherstellung bleiben bis dahin gesperrt. Die neuere Prüfung auf den tatsächlichen PRO-Anspruch nach Kauf/Wiederherstellung und die klare Jahrespreis-Beschriftung bleiben erhalten.
 
 Zusätzliche Tests prüfen diese zusammengeführten SDK-Sperren, die Kauf-/Wiederherstellungsmeldungen sowie Paketname und den internen Entwurfs-Testkanal. Die Kaufprüfungen verwenden ausschließlich SDK-Stubs; es wurde kein echter Kauf ausgeführt. Der Budget-Test verwendet jetzt einen vom Testpfad abgeleiteten Import statt des fremden absoluten Pfads `/tmp/gr/backend`.
 
-Ergebnis am 9. November:
+Ergebnis der ursprünglichen Zusammenführung am 9. November; die neueren Korrekturen und Testzahlen stehen oben:
 
 - **Frontend:** 23 von 23 Tests bestanden.
 - **Backend-Kern und KI-Kostenbremse:** 11 von 11 Offline-Tests bestanden.
@@ -23,9 +43,9 @@ Ergebnis am 9. November:
 ## Ergebnis bisher
 
 - **Grundlage:** Der gemeinsame Stand integriert `beta-core` einschließlich der bisherigen Änderungen aus `sparbetrieb`, Kostenbremse, FAQ und Feedback mit `main`. Die laufende Emergent-App wird dadurch nicht automatisch aktualisiert.
-- **Lokale Tests:** Der gemeinsame Stand besteht 23 Frontend- und 16 ausgewählte Backend-Tests. TypeScript, gezieltes Lint und Android-Export bestehen ebenfalls.
+- **Lokale Tests:** Nach den zusätzlichen Korrekturen besteht der Stand 33 Frontend- und 48 ausgewählte Backend-Tests einschließlich HTML-Bereinigung. TypeScript, gezieltes Lint und Android-Export bestehen ebenfalls.
 - **Android-Bündel:** Die JavaScript-/Asset-Bündelung wurde nach Behebung des Versionskonflikts erfolgreich durchgeführt. Das ist kein signiertes AAB und kein Installationstest auf einem Android-Gerät.
-- **Echte Angebotsstichprobe:** Noch nicht durchgeführt. Es wurden ausdrücklich nicht 40 Test-Fixtures als echte geprüfte Angebote gezählt.
+- **Echte Angebotsstichprobe:** 40 unterschiedliche echte App-Angebote und ihre 40 Originalseiten wurden geprüft; keine Test-Fixtures. Es gibt sechs dokumentierte Fehlerfälle, weitere offene oder teilgeprüfte Fälle und keine vollständige Kauf-Freigabe. Der vollständige Einzelbericht heißt „GlitchRadar: 40 echte Angebotsprüfungen“.
 - **Kosten:** Die neuen Tests verwenden eine simulierte Datenbank, Feed-Fixtures und SDK-Stubs. Sie benötigen keine kostenpflichtigen KI-Aufrufe.
 - **Maskottchen als Logo:** Start, Hauptseiten-Ticker, Paywall-Kopf, Jahresangebot, PRO-Bestätigung und Teilen-Karte verwenden die Figur. Native Icon-Dateien angepasst. Endlose Intro-Bewegung durch einmaligen 350-ms-Glitch ersetzt, mit reduzierter Bewegung und Cleanup. Nativer Hintergrundstatus für Query-Abfragen angebunden. Grenzen stehen in `MASCOT_STATUS.md`; keine gemessene CPU-/Akkuersparnis und weiterhin kein Live-Deployment.
 
@@ -67,39 +87,28 @@ Zusätzliche Offline-Prüfung der HTML-Bereinigung:
 pytest -c /dev/null -q backend/tests/test_html_sanitize.py -k test_to_text
 ```
 
-## Warum die echte 40er-Prüfung noch offen ist
+## Ergebnis der 40 echten Angebotsprüfungen
 
-Der aus dem bisherigen Projekt bekannte [Vorschau-Endpunkt](https://error-scout-20.preview.emergentagent.com/api/glitches) lieferte bei der Prüfung HTTP 404. In dieser Sitzung zeigt [Emergent](https://app.emergent.sh/) die Anmeldeseite, nicht den aktuellen Testraum.
+Die geschichtete Stichprobe umfasst vier Preisfehler, vier Lieferdienst-Einträge, acht Code-Vault-Einträge, vier weitere Gutscheine, vier Stapel, zwei Cashback-Einträge, zwei Versand-Einträge und zwölf allgemeine Deals. Alle 40 Originalbeiträge wurden gelesen. 30 Datensätze enthielten kein gespeichertes Händlerziel; zehn enthielten lediglich eine Händler-Startseite. Die Stichprobe ist nach Bereich und Aktualität ausgewählt und keine repräsentative Zufallsauswahl. Die App-Daten stammen aus dem damals erreichbaren [Testraum](https://error-scout-20.preview.emergentagent.com/api/glitches); die Einzelbelege und Bedingungen stehen in der vollständigen 40er-Tabelle.
 
-Bei der erneuten Prüfung am 7. November zeigte die bisherige Vorschau lediglich eine Ladeansicht, keinen bedienbaren Angebotsbestand. Der Google-Anmeldedialog für die Play Console ist geöffnet; der Beleg über die Entwicklerregistrierungsgebühr wurde im verbundenen Postfach gefunden. Der Beleg bestätigt weder die tatsächliche Kontozuordnung der App noch fertige Abos oder einen eingerichteten Testkanal. Passwörter wurden nicht eingegeben und kein Release eingereicht.
+- **Kritisch falscher TV-Preis:** Die App führte 1,21 €; der Originalbeitrag nennt 1.215,27 € einschließlich mehrerer Bedingungen. Ein niedriger KI-Erfolgsscore verhindert diese falsche Preisanzeige nicht. ([App-Detail](https://error-scout-20.preview.emergentagent.com/api/glitches/6af1a562eea38b93775b27e1), [Originalbeitrag](https://www.mydealz.de/deals/conrad-pro-lg-oled65c6elb-65-zoll-4k-oled-evo-ai-tv-alpha11-vrr-bis-165hz-webos-26-120hz-ohne-geschenkgutscheine-130627-2867338))
+- **Status- und Bedingungsfehler:** Drei als aktiv geführte Einträge waren auf der Quelle als abgelaufen markiert; weitere Fehler betreffen ein erst später startendes Filialangebot im Lieferdienstbereich und eine personalisierte Übergangsleistung statt eines allgemeinen 90-Tage-Angebots. Die sechs Fälle sind im Einzelbericht mit ihren jeweiligen Originalbelegen dokumentiert.
+- **Nicht pauschal falsch:** Fehlende Händlerbestätigung oder ein Bot-Schutz sind keine bewiesenen falschen Angebote. Rabattbetrag, Mindestbestellwert, Monatsrate und Warenpreis werden getrennt bewertet; ohne Einlösung im Warenkorb ist kein Code als sicher funktionierend freigegeben.
+- **Grenze:** 19 Detail-API-IDs wurden bestätigt, danach fiel die Vorschau aus. Kein Eintrag wird als vollständig auf Android geprüfter Kaufablauf ausgegeben; es wurde nichts bestellt oder bezahlt.
 
-Auch die vorhandene größere Backend-Testsammlung ist keine bestandene Live-Prüfung: Der Lauf ergab 46 Fehlschläge und 6 Setup-Fehler bei 14 bestandenen Tests. Die HTTP-basierten Tests treffen den nicht verfügbaren alten Vorschau-Endpunkt; vier Setup-Fehler betreffen außerdem die Event-Loop-Annahme alter Test-Fixtures unter der hier verwendeten Python-Version. Diese Ergebnisse sind weder als 46 nachgewiesene Produktfehler noch als bestandener Beta-Test zu interpretieren.
-
-Benötigt wird der aktuelle erreichbare Testraum mit seinem echten Angebotsbestand, entweder über die Emergent-Anmeldung oder einen funktionierenden aktuellen Vorschau-Link. Es ist keine erneute Freigabe für GitHub nötig; der Quellcode ist bereits zugänglich.
-
-## Ausstehende Prüfung von 40 echten Angeboten
-
-Aus dem tatsächlichen App-Bestand werden 40 verschiedene Angebote ausgewählt. Die Verteilung soll vorhandene Angebotsarten, Händler und Quellen abdecken, nicht nur die am leichtesten prüfbaren Einträge.
-
-Für jeden Eintrag werden festgehalten:
-
-- **App-Angaben:** ID, Titel, Produkt/Variante, Händler, Preis, Code, angegebene Bedingungen und Zeitstempel.
-- **Tatsächliches Ziel:** ursprünglicher Aktionslink, Weiterleitungen, finale Seite und Übereinstimmung mit dem konkreten Angebot.
-- **Nachweis:** öffentlich erreichbare Angebots-/Händlerseite, Prüfzeitpunkt und die dort tatsächlich belegbaren Angaben.
-- **Preis und Bedingungen:** gleicher Artikel und gleiche Variante, Versand, Mindestbestellwert, Neukunden-/App-/Regionsbindung, Gutscheincode und Laufzeit.
-- **Status:** bestätigt, nachweislich falsch/abgelaufen oder nicht überprüfbar. Eine Bot-Sperre oder fehlende Nachweismöglichkeit zählt nicht als bestanden.
-- **Grenze:** Keine Bestellung, kein Kauf und keine Zahlung. Ein Code gilt ohne technisch mögliche Warenkorbprüfung nicht als nachweislich eingelöst.
+Die ursprüngliche größere Backend-Testsammlung bleibt ebenfalls keine Live-Freigabe: Der frühere Lauf ergab 46 Fehlschläge und sechs Setup-Fehler bei 14 bestandenen Tests, darunter nicht erreichbare HTTP-Ziele und Event-Loop-Annahmen alter Test-Fixtures. Das ist von den oben erfolgreich ausgewählten Offline-Tests getrennt zu betrachten.
 
 ## Entscheidung über strengere Aufnahme
 
-Es wurde noch kein pauschaler Filter eingeführt, der möglicherweise gute Angebote ohne tatsächliche Stichprobe entfernt. Der nachgewiesene irreführende Startseiten-Fallback ist unabhängig davon korrigiert.
+Die Stichprobe belegt die Notwendigkeit strengerer Preis-, Status-, Bedingungs- und Zielprüfung. Diese zusätzlichen Regeln wurden noch nicht als live ausgerollt behauptet; der irreführende Startseiten-Fallback ist im zusammengeführten Quellcode bereits korrigiert, aber der laufende Vorschau-Commit ist nicht verifiziert. Ein GitHub-Merge allein aktualisiert keine Vorschau.
 
-Nach der Stichprobe werden Fehlerquote und Ursachen getrennt ausgewertet. Erst dann werden konkrete Aufnahme- und Aktualitätsregeln angepasst, etwa für falsche Ziele, unklare Preisübernahme, abgelaufene Aktionen und fehlende Bedingungen. Eine KI-Risikoeinschätzung oder Regelbewertung ist dabei kein Nachweis, dass ein Angebot aktuell tatsächlich funktioniert.
+Vor Aufnahme müssen insbesondere Tausendertrennzeichen korrekt verarbeitet, abgelaufene Quellen ausgesondert und Codes, Region, Startzeit, Mitgliedschaft sowie Versandbedingungen geprüft werden. Ungeklärte Fälle gehören in eine Nachprüfung und nicht in eine vermeintlich sichere Kaufempfehlung. Eine KI-Risikoeinschätzung ist kein Verfügbarkeitsnachweis.
 
 ## Vor dem Beta-Start noch erforderlich
 
 - **Live-Stand:** Änderungen im aktuellen Testraum übernehmen und dort den echten Start-/Lade-/Such-/Detailablauf wiederholen.
-- **Angebotsqualität:** Die 40er-Stichprobe durchführen, Fehler beheben und denselben Prüfmaßstab erneut anwenden.
+- **Ressourcen:** Den Prozess-/Speicherverbrauch im laufenden Deployment diagnostizieren, gezielt entlasten und die Wirkung bei echter Nutzung messen. Kein kostenpflichtiges Upgrade ohne Zustimmung.
+- **Angebotsqualität:** Die dokumentierten 40er-Befunde korrigieren und die Fälle erneut prüfen; anschließend Händler-/Android-Kaufpfade vervollständigen.
 - **Android-Gerät:** Installation, Kaltstart, langsames/offlines Netz und Öffnen externer Angebotsziele prüfen.
 - **Play Console:** Bestehende App-ID, Signierung, Release-Artefakt und vorgesehenen Testkanal prüfen. Es wurde noch kein Release eingereicht.
 - **Freigabe:** Kein Beta-Start als „fertig“ melden, solange diese Nachweise fehlen.

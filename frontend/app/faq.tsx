@@ -18,16 +18,20 @@ const FAQ: { q: string; a: string }[] = [
     a: "Der Server prüft die Quellen regelmäßig im Hintergrund automatisch. Mit dem Scout kannst du die Quellen zusätzlich manuell abfragen.",
   },
   {
-    q: "Was bedeuten Risiko und Trefferquote?",
-    a: "Das ist eine Einschätzung, wie wahrscheinlich das Einlösen klappt und wie hoch das Storno-Risiko ist. Sie wird meist von einer KI erstellt, in Ausnahmefällen über einfache Regeln je nach Deal-Art. Es ist keine Garantie – prüf den Preis immer selbst im Shop.",
+    q: "Was bedeutet die Risikobewertung?",
+    a: "Die Bewertung ist eine Schätzung aus KI oder Regeln, keine gemessene Erfolgsquote. Sie bestätigt weder den Preis noch die Kaufbarkeit. Ungeprüfte Funde sind als solche gekennzeichnet.",
+  },
+  {
+    q: "Was bedeutet „Seite geprüft“?",
+    a: "Der Kauf-Link wird nur mit einem höchstens 15 Minuten alten, passenden Prüfnachweis freigegeben: genaue Produktkennung, Preis, Währung, Lagerangabe und Kaufaktion auf der Händlerseite. Affiliate-Weiterleitungen benötigen einen eigenen Nachweis. Beim Öffnen laden wir den aktuellen Freigabestatus erneut. Das ist kein abgeschlossener Warenkorbtest und keine Preis-, Bestell- oder Liefergarantie. Fehlen Nachweise oder ist die Seite gesperrt, bleibt nur der ausdrücklich gekennzeichnete Original-Beitrag.",
   },
   {
     q: "Wird ein Preisfehler garantiert geliefert?",
-    a: "Nein. Shops dürfen Bestellungen mit offensichtlichen Preisfehlern oft stornieren. Bestell nur, was du auch zum normalen Preis gebrauchen könntest, und mach am besten einen Screenshot vom Preis.",
+    a: "Nein. Ein geprüfter Link ist keine Bestell- oder Lieferzusage. Kontrolliere vor deiner Bestellung den endgültigen Preis, Versand, Bedingungen und Verfügbarkeit direkt beim Händler.",
   },
   {
     q: "Wie entsteht der Schritt-für-Schritt-Plan?",
-    a: "Beim ersten Öffnen eines Deals erstellt der KI-Analyst einen Plan. Er wird gespeichert, damit alle danach sofort denselben Plan sehen. Deshalb lädt er beim zweiten Mal schneller.",
+    a: "Neue KI-Analysen starten nur über „Optionale Analyse anfordern“, nicht automatisch beim Öffnen. Gespeicherte Pläne bleiben verfügbar. KI-Ausgaben können Fehler enthalten und ersetzen keine Prüfung der Händlerbedingungen.",
   },
   {
     q: "Warum ändert sich der Plan nicht, wenn ich die Seite neu lade?",

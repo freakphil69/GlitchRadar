@@ -1,7 +1,17 @@
 export type GlitchType = "price_error" | "coupon" | "cashback" | "shipping" | "stack" | "deal";
 export type RiskLevel = "low" | "medium" | "high";
 
+export interface OfferLinkProof {
+  passed: boolean; checked_at: string; url: string; title: string;
+  product_id: string | null; price: number | null; currency: string;
+}
+
 export interface Glitch {
+  price_conflict?: boolean;
+  product_id?: string | null;
+  link_status?: "checked" | "unverified";
+  link_check?: OfferLinkProof | null;
+  affiliate_check?: OfferLinkProof | null;
   id: string;
   type: GlitchType;
   title: string;

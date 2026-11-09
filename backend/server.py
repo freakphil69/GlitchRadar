@@ -21,7 +21,9 @@ import ai_budget
 from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 
 from auth import ensure_auth_indexes, make_auth
-from feeds import FEEDS, _to_text, fetch_all_feeds
+from feeds import FEEDS, PRICE_RE, _price, _to_text, fetch_all_feeds
+from http_limits import ResponseTooLarge, bounded_get
+from link_checks import check_product_link, purchase_link_allowed
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -262,6 +264,9 @@ class GlitchDoc(BaseDocument):
     why_it_works: str = ""
     original_price: Optional[float] = None
     glitched_price: Optional[float] = None
+    product_id: Optional[str] = None
+    link_check: Optional[dict] = None
+    affiliate_check: Optional[dict] = None
     currency: str = "EUR"
     discount_pct: int = 0
     coupon_code: Optional[str] = None
@@ -299,11 +304,31 @@ class GlitchDoc(BaseDocument):
 
     def out(self) -> dict:
         d = super().out()
-        base, aff = build_affiliate_link(self.shop, d.get("url"))
+        # Old rows may already contain the truncated "1.21" TV price. Do not
+        # silently repair a stored price from prose or present it as verified.
+        leading = re.match(PRICE_RE, self.description.strip())
+        source_price = _price(leading.group(1)) if leading else None
+        conflict = (self.glitched_price is not None and source_price is not None
+                    and abs(self.glitched_price - source_price) > 0.011)
+        d["price_conflict"] = conflict
+        if conflict:
+            d["glitched_price"] = None
+            d["discount_pct"] = 0
+        approved = (self.status == "active" and not conflict and
+                    (self.expires_at is None or self.expires_at > _now()) and
+                    purchase_link_allowed(self.link_check, url=self.url, title=self.title,
+                        product_id=self.product_id, price=self.glitched_price,
+                        currency=self.currency, now=_now()))
+        base, aff = build_affiliate_link(self.shop, d.get("url") if approved else None)
+        d["link_status"] = "checked" if approved and base else "unverified"
         d["url"] = base
         # Discard old synthesized homepage affiliates, too. Without a specific
         # target, the client offers the original source post instead.
-        d["affiliate_url"] = aff
+        # Tracking/affiliate redirects need their own check; a passing direct
+        # product URL is not evidence that an intermediary still works.
+        d["affiliate_url"] = aff if approved and aff and purchase_link_allowed(
+            self.affiliate_check, url=aff, title=self.title, product_id=self.product_id,
+            price=self.glitched_price, currency=self.currency, now=_now()) else None
         d.update(coupon_terms(f"{self.title} {self.description}"))
         at = _ensure_tz(self.analyzed_at) if self.analyzed_at else None
         d["analysis_stale"] = bool(at and _now() - at > timedelta(hours=ENRICH_TTL_HOURS))
@@ -428,6 +453,8 @@ async def _expire_stale() -> None:
 
 IMG_HOSTS = ("static.mydealz.de", "www.dealdoktor.de", "dealdoktor.de", "static.preisjaeger.at",
              "www.mytopdeals.net", "mytopdeals.net", "www.sparhamster.at", "sparhamster.at")
+MAX_IMAGE_BYTES = 4 * 1024 * 1024
+_image_slots = asyncio.Semaphore(2)
 
 
 @api_router.get("/img")
@@ -437,11 +464,18 @@ async def image_proxy(u: str):
     host = urlparse(u).hostname or ""
     if urlparse(u).scheme != "https" or host not in IMG_HOSTS:
         raise HTTPException(status_code=400, detail="Host nicht erlaubt")
-    async with httpx.AsyncClient(timeout=15, follow_redirects=True) as hc:
-        r = await hc.get(u, headers={"User-Agent": "Mozilla/5.0 (compatible; GlitchRadar/1.0)"})
-    if r.status_code != 200 or not r.headers.get("content-type", "").startswith("image/"):
+    try:
+        async with _image_slots:
+            async with httpx.AsyncClient(timeout=15, follow_redirects=True) as hc:
+                headers, content = await bounded_get(hc, u, MAX_IMAGE_BYTES,
+                    headers={"User-Agent": "Mozilla/5.0 (compatible; GlitchRadar/1.0)"})
+    except ResponseTooLarge:
+        raise HTTPException(status_code=413, detail="Bild zu groß")
+    except httpx.HTTPError:
+        raise HTTPException(status_code=502, detail="Bild vorübergehend nicht erreichbar")
+    if not headers.get("content-type", "").startswith("image/"):
         raise HTTPException(status_code=404, detail="Bild nicht gefunden")
-    return Response(content=r.content, media_type=r.headers["content-type"],
+    return Response(content=content, media_type=headers["content-type"],
                     headers={"Cache-Control": "public, max-age=86400"})
 
 
@@ -735,7 +769,47 @@ async def _poll_loop() -> None:
                     logger.info(f"Hintergrund-Scan: {res['scan']['found_count']} neue Funde")
         except Exception as e:
             logger.warning(f"Hintergrund-Scan fehlgeschlagen: {e}")
+        try:
+            await recheck_purchase_links()
+        except Exception as e:
+            logger.warning(f"Händlerlink-Nachprüfung fehlgeschlagen: {e}")
         await asyncio.sleep(POLL_SECONDS)
+
+
+async def recheck_purchase_links() -> None:
+    """Bounded, sequential rechecks; stale proofs stop authorizing links at read time.
+
+    No merchant URL or product identity is invented from a shop name/title.
+    Missing identity stays unverified and needs source enrichment/manual evidence.
+    """
+    from link_checks import CHECK_TTL
+    due = _now() - CHECK_TTL / 2
+    docs = await db.glitches.find({
+        "status": "active", "url": {"$type": "string"},
+        "$or": [{"link_check.checked_at": {"$exists": False}},
+                {"link_check.checked_at": {"$lte": due.isoformat()}},
+                {"link_check.checked_at": {"$gt": _now().isoformat()}}],
+    }).sort([("link_check.checked_at", 1)]).to_list(5)
+    allowed = {urlsplit(u).hostname.removeprefix("www.") for u in SHOP_HOMEPAGES.values()}
+    allowed.update({"conrad.de", "flaconi.at", "soliver.at", "joybuy.de", "sportspar.de",
+                    "getgoods.com", "getgoods.de", "yves-rocher.de", "ibood.com", "awin1.com"})
+    async with httpx.AsyncClient(timeout=12, follow_redirects=False,
+                                 headers={"User-Agent": "GlitchRadar-LinkCheck/1.0", "Accept-Encoding": "identity"}) as hc:
+        for doc in docs:
+            g = GlitchDoc.from_mongo(doc)
+            check = await check_product_link(hc, url=g.url, title=g.title, product_id=g.product_id,
+                price=g.glitched_price, currency=g.currency, allowed_hosts=allowed)
+            _, affiliate = build_affiliate_link(g.shop, g.url)
+            affiliate_check = None
+            if check["passed"] and affiliate:
+                affiliate_check = await check_product_link(hc, url=affiliate, title=g.title,
+                    product_id=g.product_id, price=g.glitched_price, currency=g.currency,
+                    allowed_hosts=allowed)
+            await db.glitches.update_one(
+                {"_id": g.id, "url": g.url, "title": g.title, "product_id": g.product_id,
+                 "glitched_price": g.glitched_price, "currency": g.currency},
+                {"$set": {"link_check": check, "affiliate_check": affiliate_check}},
+            )
 
 
 @api_router.post("/scan")

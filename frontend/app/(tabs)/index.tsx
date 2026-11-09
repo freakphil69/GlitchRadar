@@ -29,7 +29,7 @@ const SORT_CHIPS = [
   { key: "new", label: "NEUESTE" },
   { key: "hot", label: "HOT °" },
   { key: "discount", label: "MAX RABATT" },
-  { key: "risk", label: "TREFFERQUOTE" },
+  { key: "risk", label: "RISIKOSCHÄTZUNG" },
 ];
 
 export default function RadarScreen() {

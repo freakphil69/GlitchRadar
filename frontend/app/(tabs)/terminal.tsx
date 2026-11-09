@@ -23,8 +23,8 @@ const DISCOUNT_CHIPS = [
 
 const MODEL_STACK = [
   { role: "QUELLEN", model: "MYDEALZ + PREISJÄGER + DEALDOKTOR", job: "Echte Funde aus Live-Feeds, alle 10 Min" },
-  { role: "SCORING", model: "GEMINI 3 FLASH", job: "Bewertet Risiko + Trefferquote" },
-  { role: "ANALYST", model: "CLAUDE SONNET 5.5", job: "Schritt-für-Schritt-Pläne zu echten Funden" },
+  { role: "SCORING", model: "GEMINI 3 FLASH / REGELN", job: "Schätzt Risiken, bestätigt keine Kaufbarkeit" },
+  { role: "ANALYST", model: "CLAUDE SONNET 5.5 (OPTIONAL)", job: "KI-Pläne nur auf Anforderung und bei verfügbarem Kontingent" },
 ];
 
 export default function TerminalScreen() {
