@@ -9,7 +9,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "test:beta": "node --test scripts/test-api.cjs scripts/test-billing-startup.cjs scripts/test-mascot.cjs scripts/test-release-config.cjs"
   },
   "dependencies": {
     "@expo/metro-runtime": "57.0.17",
@@ -19,6 +20,7 @@
     "date-fns": "4.1.0",
     "dayjs": "1.11.13",
     "expo": "57.0.29",
+    "expo-asset": "~57.0.20",
     "expo-audio": "~57.0.5",
     "expo-blur": "57.0.3",
     "expo-clipboard": "~57.0.2",

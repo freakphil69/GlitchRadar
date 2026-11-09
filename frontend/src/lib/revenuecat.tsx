@@ -29,28 +29,19 @@ const REVENUECAT_ANDROID_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_AP
 
 export const REVENUECAT_ENTITLEMENT_IDENTIFIER = "pro"; // from setup: entitlement_lookup_key
 
-export const rcEnabled = Platform.OS !== "web" || __DEV__; // web preview uses the Test Store
+// Optional billing must not break the free radar on startup. Consumers only
+// access the native SDK once configure has actually completed.
+export let rcEnabled = false;
 export const isTestStore = Platform.OS === "web" || __DEV__;
 
-function getRevenueCatApiKey(): string {
-  // Pick the platform/mode first, then validate ONLY the key that is actually needed.
-  let key: string | undefined;
-  let name: string;
+function getRevenueCatApiKey(): string | undefined {
+  // Only the selected platform/mode needs a key. Billing is optional for the free core.
   if (Platform.OS === "web" || __DEV__) {
-    key = REVENUECAT_TEST_API_KEY; // Expo Go and the web preview use the RevenueCat Test Store
-    name = "EXPO_PUBLIC_REVENUECAT_TEST_API_KEY";
-  } else if (Platform.OS === "android") {
-    key = REVENUECAT_ANDROID_API_KEY;
-    name = "EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY";
-  } else if (Platform.OS === "ios") {
-    key = REVENUECAT_IOS_API_KEY;
-    name = "EXPO_PUBLIC_REVENUECAT_IOS_API_KEY";
-  } else {
-    key = REVENUECAT_TEST_API_KEY;
-    name = "EXPO_PUBLIC_REVENUECAT_TEST_API_KEY";
+    return REVENUECAT_TEST_API_KEY; // Expo Go and web preview use the Test Store.
   }
-  if (!key) throw new Error(`RevenueCat key missing: ${name}`);
-  return key;
+  if (Platform.OS === "android") return REVENUECAT_ANDROID_API_KEY;
+  if (Platform.OS === "ios") return REVENUECAT_IOS_API_KEY;
+  return REVENUECAT_TEST_API_KEY;
 }
 
 // True only after Purchases.configure() succeeded. All SDK queries depend on this.
@@ -60,10 +51,13 @@ export function isRevenueCatConfigured() {
 }
 
 export function initializeRevenueCat() {
-  if (!rcEnabled) return; // no store on production web
+  if (rcEnabled || (Platform.OS === "web" && !__DEV__)) return;
+  const apiKey = getRevenueCatApiKey();
+  if (!apiKey) return; // Radar, search and detail remain usable without billing.
   Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.DEBUG : LOG_LEVEL.WARN);
-  Purchases.configure({ apiKey: getRevenueCatApiKey() });
+  Purchases.configure({ apiKey });
   rcConfigured = true;
+  rcEnabled = true;
 }
 
 function useSubscriptionContext() {
@@ -134,7 +128,7 @@ function useSubscriptionContext() {
     Purchases.getAppUserID()
       .then(setAppUserId)
       .catch(() => setAppUserId(null));
-  }, [customerInfoQuery.data, customerInfoQuery.dataUpdatedAt]);
+  }, [customerInfoQuery.data, customerInfoQuery.dataUpdatedAt, rcReady]);
   const identityReady = !!appUserId && !appUserId.startsWith("$RCAnonymousID:");
 
   return {

@@ -5,7 +5,7 @@ import * as WebBrowser from "expo-web-browser";
 import Purchases from "react-native-purchases";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { apiGet, apiPost, setAuthToken, setUnauthorizedHandler } from "./api";
+import { ApiError, apiGet, apiPost, setAuthToken, setUnauthorizedHandler } from "./api";
 import { rcEnabled } from "./revenuecat";
 import { syncStash } from "./stash";
 import { storage } from "@/src/utils/storage";
@@ -110,8 +110,14 @@ function useAuthState() {
           setAuthToken(token);
           try {
             setUser(await apiGet<User>("/auth/me"));
-          } catch {
-            await clearSession();
+          } catch (error) {
+            // A temporary outage is not an expired session. Keep the saved token
+            // so the next successful request/restart can restore the account.
+            if (error instanceof ApiError && error.status === 401) {
+              await clearSession();
+            } else {
+              setAuthError((error as Error).message);
+            }
           }
         }
       } finally {

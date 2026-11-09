@@ -16,9 +16,9 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, field_validator
 from starlette.middleware.cors import CORSMiddleware
 
-from emergentintegrations.llm.chat import LlmChat, UserMessage
+import ai_budget
 
-from urllib.parse import quote
+from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 
 from auth import ensure_auth_indexes, make_auth
 from feeds import FEEDS, _to_text, fetch_all_feeds
@@ -28,7 +28,7 @@ load_dotenv(ROOT_DIR / '.env')
 
 MONGO_URL = os.environ['MONGO_URL']
 DB_NAME = os.environ['DB_NAME']
-EMERGENT_LLM_KEY = os.environ['EMERGENT_LLM_KEY']
+EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '').strip()
 
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
@@ -44,6 +44,10 @@ RISK_LEVELS = {"low", "medium", "high"}
 SCOUT_MODEL = "gpt-5.6-terra"
 SCORER_MODEL = "gemini-3-flash-preview"
 ANALYST_MODEL = "claude-sonnet-5-5"
+ENRICH_PROMPT_VERSION = "enrich-v1"
+SCORE_PROMPT_VERSION = "score-v1"
+ENRICH_MAX_DESC = 2000  # Zeichen; längere Beschreibungen werden sichtbar als gekürzt markiert
+ENRICH_TTL_HOURS = int(os.environ.get("ENRICH_TTL_HOURS", "72"))
 
 
 # ---------------------------------------------------------------------------
@@ -180,14 +184,25 @@ def _awin_advertisers() -> dict:
     return out
 
 
-def build_affiliate_link(shop: str) -> tuple[Optional[str], Optional[str]]:
+def build_affiliate_link(shop: str, target_url: Optional[str] = None) -> tuple[Optional[str], Optional[str]]:
     key = (shop or "").strip().lower()
-    base_url = SHOP_HOMEPAGES.get(key)
-    if not base_url:
+    # A merchant homepage is not an offer. Never invent a destination from a
+    # shop name; monetization must preserve the exact supplied product link.
+    if not target_url:
         return None, None
+    target = urlsplit(target_url)
+    known_homepage = SHOP_HOMEPAGES.get(key)
+    if (target.scheme not in {"http", "https"} or not target.hostname
+            or target.username or target.password or target.path in {"", "/"}):
+        return None, None
+    base_url = target_url
+    if not known_homepage or target.hostname.removeprefix("www.") != urlsplit(known_homepage).hostname.removeprefix("www."):
+        return base_url, None
     amazon_tag = os.environ.get("AMAZON_PARTNER_TAG", "").strip()
     if key.startswith("amazon") and amazon_tag:
-        return base_url, f"{base_url}?tag={quote(amazon_tag)}"
+        params = [(k, v) for k, v in parse_qsl(target.query, keep_blank_values=True) if k != "tag"]
+        params.append(("tag", amazon_tag))
+        return base_url, urlunsplit(target._replace(query=urlencode(params)))
     publisher = os.environ.get("AWIN_PUBLISHER_ID", "").strip()
     advertiser = _awin_advertisers().get(key)
     if publisher and advertiser:
@@ -264,6 +279,10 @@ class GlitchDoc(BaseDocument):
     success_rate: int = 60
     source_label: str = "MYDEALZ"
     scout_model: str = ""
+    score_source: str = "rules"  # "ai" = KI-Bewertung, "rules" = einfache Regelbewertung
+    analysis_source: Optional[str] = None  # "ai" sobald ein KI-Plan gespeichert ist
+    analyzed_at: Optional[datetime] = None
+    analysis_version: Optional[str] = None
     status: str = "active"
     enriched: bool = False
     instructions: List[str] = Field(default_factory=list)
@@ -280,11 +299,14 @@ class GlitchDoc(BaseDocument):
 
     def out(self) -> dict:
         d = super().out()
-        if not d.get("url") or not d.get("affiliate_url"):
-            base, aff = build_affiliate_link(self.shop)
-            d["url"] = d.get("url") or base
-            d["affiliate_url"] = d.get("affiliate_url") or aff
+        base, aff = build_affiliate_link(self.shop, d.get("url"))
+        d["url"] = base
+        # Discard old synthesized homepage affiliates, too. Without a specific
+        # target, the client offers the original source post instead.
+        d["affiliate_url"] = aff
         d.update(coupon_terms(f"{self.title} {self.description}"))
+        at = _ensure_tz(self.analyzed_at) if self.analyzed_at else None
+        d["analysis_stale"] = bool(at and _now() - at > timedelta(hours=ENRICH_TTL_HOURS))
         return d
 
 
@@ -325,8 +347,13 @@ FUND-LISTE:
 
 
 async def score_items(items: list) -> List[dict]:
-    defaults = [{"risk_level": "medium", "success_rate": 70, "risk_note": ""} for _ in items]
+    defaults = [{"risk_level": "medium", "success_rate": 70, "risk_note": "", "ai": False} for _ in items]
+    if not EMERGENT_LLM_KEY:
+        return defaults
+    if not await ai_budget.reserve(db, "scoring"):
+        return defaults  # Sparbetrieb: keine KI, Regelbewertung übernimmt
     try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage
         chat = (
             LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"scorer-{uuid.uuid4()}", system_message=SCORE_SYSTEM)
             .with_model("gemini", SCORER_MODEL)
@@ -346,6 +373,7 @@ async def score_items(items: list) -> List[dict]:
                 "risk_level": risk if risk in RISK_LEVELS else "medium",
                 "success_rate": max(0, min(100, _i(sc.get("success_rate"), 70))),
                 "risk_note": str(sc.get("risk_note", ""))[:220],
+                "ai": True,
             }
         return out
     except Exception as e:
@@ -548,42 +576,91 @@ async def report_dead(glitch_id: str):
     return {"ok": True}
 
 
+_enrich_locks: dict = {}
+
+
+@api_router.get("/ai/status")
+async def ai_status():
+    """Zeigt Sparbetrieb und Verbrauch – ohne Schlüssel oder Kosten zu verraten."""
+    return await ai_budget.status(db)
+
+
 @api_router.post("/glitches/{glitch_id}/enrich")
 async def enrich_glitch(glitch_id: str):
-    g = GlitchDoc.from_mongo(await db.glitches.find_one({"_id": _parse_oid(glitch_id)}))
+    oid = _parse_oid(glitch_id)
+    g = GlitchDoc.from_mongo(await db.glitches.find_one({"_id": oid}))
     if not g:
         raise HTTPException(status_code=404, detail="Glitch nicht gefunden")
+    # 1) Gespeicherten Plan wiederverwenden – keine neue KI-Abfrage.
+    #    Deal-Analysen sind öffentlich (keine Nutzerdaten) und dürfen geteilt werden.
     if g.enriched and g.instructions:
         return g.out()
-    payload = json.dumps({
-        "type": g.type, "title": g.title, "shop": g.shop, "category": g.category,
-        "description": g.description, "original_price": g.original_price,
-        "glitched_price": g.glitched_price, "coupon_code": g.coupon_code,
-        "risk_level": g.risk_level, "published_at": g.published_at.isoformat(),
-        "source": g.source_label, "source_url": g.source_url,
-    }, ensure_ascii=False)
-    try:
-        chat = (
-            LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"analyst-{glitch_id}", system_message=ANALYST_SYSTEM)
-            .with_model("anthropic", ANALYST_MODEL)
+    if not EMERGENT_LLM_KEY:
+        raise HTTPException(status_code=503, detail="Optionale KI-Analyse nicht eingerichtet. Der Original-Beitrag bleibt verfügbar.")
+    # 2) Gleichzeitige identische Anfragen: nur EIN Aufruf (pro Prozess per Lock,
+    #    prozessübergreifend per kurzer Sperre in MongoDB).
+    lock = _enrich_locks.setdefault(glitch_id, asyncio.Lock())
+    async with lock:
+        g = GlitchDoc.from_mongo(await db.glitches.find_one({"_id": oid}))
+        if g.enriched and g.instructions:
+            return g.out()
+        now = _now()
+        claim = await db.glitches.update_one(
+            {"_id": oid, "$or": [{"enrich_claim_until": {"$exists": False}}, {"enrich_claim_until": {"$lt": now}}]},
+            {"$set": {"enrich_claim_until": now + timedelta(seconds=120)}},
         )
-        raw = await asyncio.wait_for(chat.send_message(UserMessage(text=ENRICH_PROMPT.format(payload=payload))), timeout=90)
-        data = _extract_json_dict(_as_text(raw))
-        updates = {
-            "enriched": True,
-            "instructions": [_clean_step(s) for s in list(data.get("steps", []))[:8] if str(s).strip()],
-            "tips": [str(s).strip() for s in list(data.get("tips", []))[:5] if str(s).strip()],
-            "risk_analysis": str(data.get("risk_analysis", "")).strip() or None,
-            "time_window_note": str(data.get("time_window_note", "")).strip() or None,
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Enrichment fehlgeschlagen: {e}")
-        raise HTTPException(status_code=502, detail="Entschlüsselung fehlgeschlagen. Bitte erneut versuchen.")
-    await db.glitches.update_one({"_id": g.id}, {"$set": updates})
-    g2 = GlitchDoc.from_mongo(await db.glitches.find_one({"_id": g.id}))
-    return g2.out()
+        if claim.modified_count == 0:
+            raise HTTPException(status_code=409, detail="Analyse läuft bereits. Bitte gleich neu laden.")
+        try:
+            # 3) Kostenbremse: ohne freies Kontingent KEIN kostenpflichtiger Aufruf.
+            if not await ai_budget.reserve(db, "enrich"):
+                raise HTTPException(status_code=503, detail=(
+                    "Aktuell ist keine neue KI-Prüfung verfügbar. "
+                    "Vorhandene Ergebnisse und Basisfunktionen bleiben nutzbar."))
+            desc = g.description or ""
+            truncated = len(desc) > ENRICH_MAX_DESC
+            payload = json.dumps({
+                "type": g.type, "title": g.title[:300], "shop": g.shop, "category": g.category,
+                "description": desc[:ENRICH_MAX_DESC] + (" [Beschreibung gekürzt – Rest im Original-Beitrag prüfen]" if truncated else ""),
+                "original_price": g.original_price,
+                "glitched_price": g.glitched_price, "coupon_code": g.coupon_code,
+                "risk_level": g.risk_level, "published_at": g.published_at.isoformat(),
+                "source": g.source_label, "source_url": g.source_url,
+            }, ensure_ascii=False)
+            try:
+                from emergentintegrations.llm.chat import LlmChat, UserMessage
+                chat = (
+                    LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"analyst-{glitch_id}", system_message=ANALYST_SYSTEM)
+                    .with_model("anthropic", ANALYST_MODEL)
+                )
+                raw = await asyncio.wait_for(chat.send_message(UserMessage(text=ENRICH_PROMPT.format(payload=payload))), timeout=90)
+                data = _extract_json_dict(_as_text(raw))
+            except Exception as e:
+                logger.error(f"Enrichment fehlgeschlagen: {e}")
+                raise HTTPException(status_code=502, detail="Analyse fehlgeschlagen. Es wurde nichts gespeichert.")
+            steps = [_clean_step(s) for s in list(data.get("steps", []))[:8] if str(s).strip()]
+            risk = str(data.get("risk_analysis", "")).strip()
+            # Unvollständige Antworten NICHT als Ergebnis speichern.
+            if len(steps) < 2 or not risk:
+                raise HTTPException(status_code=502, detail="Analyse unvollständig. Es wurde nichts gespeichert.")
+            updates = {
+                "enriched": True,
+                "instructions": steps,
+                "tips": [str(s).strip() for s in list(data.get("tips", []))[:5] if str(s).strip()],
+                "risk_analysis": risk,
+                "time_window_note": str(data.get("time_window_note", "")).strip() or None,
+                "analysis_source": "ai",
+                "analyzed_at": _now(),
+                "analysis_version": f"{ANALYST_MODEL}/{ENRICH_PROMPT_VERSION}",
+            }
+            await db.glitches.update_one({"_id": oid}, {"$set": updates})
+        finally:
+            await db.glitches.update_one({"_id": oid}, {"$unset": {"enrich_claim_until": ""}})
+            _enrich_locks.pop(glitch_id, None)
+    g2 = GlitchDoc.from_mongo(await db.glitches.find_one({"_id": oid}))
+    out = g2.out()
+    out["fresh_analysis"] = True
+    return out
 
 
 scan_lock = asyncio.Lock()
@@ -615,21 +692,23 @@ async def ingest_feeds() -> dict:
     for i in range(0, len(fresh), 25):
         batch = fresh[i:i + 25]
         compact = [
-            {"title": b["title"], "shop": b["shop"], "type": b["type"], "price": b["glitched_price"],
+            {"title": b["title"][:200], "shop": b["shop"], "type": b["type"], "price": b["glitched_price"],
              "statt": b["original_price"], "rabatt_pct": b["discount_pct"], "code": b["coupon_code"]}
             for b in batch
         ]
         llm = await score_items(compact)
         for b, sc in zip(batch, llm):
-            if not sc.get("risk_note"):
+            if not (sc.get("ai") and sc.get("risk_note")):
                 risk, rate, note = DEFAULT_RISK.get(b["type"], ("medium", 65, "Deal im Original-Beitrag prüfen."))
-                sc = {"risk_level": risk, "success_rate": rate, "risk_note": note}
+                sc = {"risk_level": risk, "success_rate": rate, "risk_note": note, "ai": False}
             scores.append(sc)
 
     docs = []
     for it, sc in zip(fresh, scores):
         docs.append(GlitchDoc(**it, risk_level=sc["risk_level"], success_rate=sc["success_rate"],
-                              risk_note=sc["risk_note"], scout_model=SCORER_MODEL).to_mongo())
+                              risk_note=sc["risk_note"],
+                              score_source="ai" if sc["ai"] else "rules",
+                              scout_model=SCORER_MODEL if sc["ai"] else "REGELN").to_mongo())
     if docs:
         try:
             await db.glitches.insert_many(docs, ordered=False)
@@ -719,6 +798,58 @@ async def stats():
 auth_router, current_user = make_auth(db)
 
 
+# ---------------------------------------------------------------------------
+# Feedback (Radar-Bewertung + Kommentar) – ohne KI, ohne Kosten
+# ---------------------------------------------------------------------------
+
+FEEDBACK_TAGS = {"Funde", "Geschwindigkeit", "Design", "KI-Pläne", "Codes", "Preis", "Bug", "Idee"}
+FEEDBACK_PER_HOUR = 5
+
+
+class FeedbackIn(BaseModel):
+    rating: int = Field(ge=1, le=5)
+    comment: str = Field(default="", max_length=1000)
+    tags: List[str] = Field(default_factory=list, max_length=8)
+
+
+import hashlib as _hashlib
+import secrets as _secrets
+_FEEDBACK_SALT = _secrets.token_hex(16)  # zufällig, wechselt bei jedem Server-Neustart
+
+
+def _ip_hash(request: Request) -> str:
+    fwd = request.headers.get("x-forwarded-for", "")
+    ip = fwd.split(",")[0].strip() if fwd else (request.client.host if request.client else "")
+    return _hashlib.sha256(f"{_FEEDBACK_SALT}:{ip}".encode()).hexdigest()[:32]
+
+
+@api_router.post("/feedback", status_code=201)
+async def send_feedback(body: FeedbackIn, request: Request):
+    ip_h = _ip_hash(request)  # nur Hash, keine IP gespeichert – dient allein dem Spamschutz
+    recent = await db.feedback.count_documents({"ip_hash": ip_h, "created_at": {"$gt": _now() - timedelta(hours=1)}})
+    if recent >= FEEDBACK_PER_HOUR:
+        raise HTTPException(status_code=429, detail="Danke! Du hast gerade schon Feedback geschickt. Versuch es später nochmal.")
+    await db.feedback.insert_one({
+        "rating": body.rating,
+        "comment": _to_text(body.comment).strip()[:1000],
+        "tags": [t for t in body.tags if t in FEEDBACK_TAGS],
+        "ip_hash": ip_h,
+        "created_at": _now(),
+    })
+    return {"ok": True}
+
+
+@api_router.get("/feedback/summary")
+async def feedback_summary():
+    """Öffentlich nur Durchschnitt und Anzahl – Kommentare bleiben privat."""
+    rows = await db.feedback.aggregate([
+        {"$group": {"_id": None, "avg": {"$avg": "$rating"}, "n": {"$sum": 1}}},
+    ]).to_list(1)
+    if not rows:
+        return {"average": None, "count": 0}
+    return {"average": round(_f(rows[0].get("avg")), 1), "count": _i(rows[0].get("n"))}
+
+
 class StashIn(BaseModel):
     items: List[dict] = Field(default_factory=list, max_length=500)
 
@@ -793,6 +924,14 @@ async def startup():
         }})
     await db.scans.update_many({"status": "running"}, {"$set": {"status": "failed", "error": "Server-Neustart"}})
     await ensure_auth_indexes(db)
+    await db.feedback.create_index([("ip_hash", 1), ("created_at", -1)])
+    # Ältere Einträge ehrlich kennzeichnen: Herkunft der Bewertung nicht eindeutig.
+    await db.glitches.update_many({"score_source": {"$exists": False}}, {"$set": {"score_source": "legacy"}})
+    await db.glitches.update_many({"enriched": True, "analysis_source": {"$exists": False}},
+                                  {"$set": {"analysis_source": "ai"}})
+    s = ai_budget.settings()
+    logger.info(f"KI-Sparbetrieb: enabled={s['enabled']} scoring={s['scoring_enabled']} "
+                f"enrich={s['enrich_enabled']} limits={s['daily_limit']}/Tag, {s['total_limit']} gesamt")
     await db.glitches.create_index([("status", 1), ("published_at", -1)])
     asyncio.create_task(_poll_loop())
 

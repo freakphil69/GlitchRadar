@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { ActivityIndicator, Image, Platform, Pressable, Share, Text, useWindowDimensions, View } from "react-native";
+import { ActivityIndicator, Platform, Pressable, Share, Text, useWindowDimensions, View } from "react-native";
 import { useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
 import { captureRef } from "react-native-view-shot";
@@ -7,6 +7,7 @@ import MaterialCommunityIcons from "@react-native-vector-icons/material-design-i
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useToast } from "@/src/components/Toast";
+import { Mascot } from "@/src/components/Mascot";
 import { fmtMoney } from "@/src/lib/format";
 import { useStash } from "@/src/lib/stash";
 import { savingOf } from "@/src/lib/types";
@@ -102,7 +103,7 @@ export default function ShareSavingsScreen() {
           style={[styles.card, { width: cardW, height: cardH, padding: 24 * k }]}
         >
           <View style={styles.brandRow}>
-            <Image source={require("@/assets/images/icon.png")} style={{ width: 40 * k, height: 40 * k, borderRadius: 10 * k }} />
+            <Mascot width={40 * k} height={46 * k} />
             <Text style={[styles.brand, { fontSize: 18 * k }]}>GLITCHRADAR</Text>
           </View>
 
