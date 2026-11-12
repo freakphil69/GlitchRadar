@@ -20,7 +20,7 @@ import { Countdown } from "@/src/components/Countdown";
 import { useToast } from "@/src/components/Toast";
 import { fmtDateTime, fmtMoney, fmtPrice, imgSrc } from "@/src/lib/format";
 import { useEnrich, useGlitch, useReportDead } from "@/src/lib/queries";
-import { offerTarget } from "@/src/lib/offer-target";
+import { confirmedTarget, homepageClickHint, merchantLanding, offerTarget } from "@/src/lib/offer-target";
 import { useIsStashed, useStashActions } from "@/src/lib/stash";
 import { RISK_LABELS, TYPE_LABELS } from "@/src/lib/types";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -46,7 +46,9 @@ export default function GlitchDetailScreen() {
   const actions = useStashActions();
   const [section, setSection] = useState("steps");
   const [opening, setOpening] = useState(false);
+  const [confirmedLanding, setConfirmedLanding] = useState<string | null>(null);
   const glitch = q.data;
+  const currentLanding = confirmedLanding;
 
   const retryEnrich = () => {
     enrich.mutate();
@@ -71,17 +73,27 @@ export default function GlitchDetailScreen() {
 
   const target = glitch ? offerTarget(glitch) : null;
   const isAd = !!target?.purchase && !!glitch?.affiliate_url && glitch.affiliate_url !== glitch.url;
+  const clickHint = glitch ? homepageClickHint(glitch) : null;
+  const landing = glitch ? merchantLanding(glitch) : null;
 
+  // Homepage landing requires the user's explicit confirmation. After the first
+  // confirmed target, the next shop tap opens the exact merchant homepage, never
+  // the product URL: a homepage is a written search path, not purchase evidence.
   const onShop = async () => {
     if (!glitch || opening) return;
     setOpening(true);
     try {
       const latest = await q.refetch();
       if (latest.isError || !latest.data) throw new Error("Aktuelle Zielprüfung nicht erreichbar.");
-      const checked = offerTarget(latest.data);
-      if (!checked.url) throw new Error("Kein gültiges Ziel verfügbar.");
-      if (!checked.purchase) toast("Kein freigegebener Kauf-Link. Der Original-Beitrag wird geöffnet.", "info");
-      await WebBrowser.openBrowserAsync(checked.url);
+      const confirmed = confirmedTarget(latest.data, currentLanding === glitch.id);
+      if (!confirmed.url) throw new Error("Kein gültiges Ziel verfügbar.");
+      if (confirmed.landing) {
+        setConfirmedLanding(null);
+        await WebBrowser.openBrowserAsync(confirmed.landing);
+      } else {
+        if (!confirmed.purchase) toast("Kein freigegebener Kauf-Link. Der Original-Beitrag wird geöffnet.", "info");
+        await WebBrowser.openBrowserAsync(confirmed.url);
+      }
     } catch {
       toast("Ziel derzeit nicht prüfbar. Bitte später erneut versuchen.", "error");
     } finally {
@@ -343,6 +355,13 @@ export default function GlitchDetailScreen() {
       </ScrollView>
 
       <View style={[styles.ctaWrap, { paddingBottom: insets.bottom + 12 }]}>
+        {clickHint ? (
+          <View style={styles.landingHint} testID="detail-homepage-click-hint">
+            <Text style={styles.landingHintText}>
+              WEITERER KLICK AUF DIE STARTSEITE NÖTIG. DAS ANGEBOT MUSS DORT GESUCHT WERDEN.
+            </Text>
+          </View>
+        ) : null}
         <View style={{ flexDirection: "row", gap: spacing.sm }}>
           <Pressable
             testID="detail-stash-toggle"
@@ -359,10 +378,23 @@ export default function GlitchDetailScreen() {
             <MaterialCommunityIcons name="skull-outline" size={18} color={colors.error} />
             <Text style={[styles.secondaryText, { color: colors.error }]}>TOT</Text>
           </Pressable>
-          <Pressable testID="detail-shop-button" disabled={opening} onPress={onShop} style={[styles.secondaryBtn, { flex: 1 }]}>
+          <Pressable
+            testID={landing ? "detail-homepage-button" : "detail-shop-button"}
+            disabled={opening}
+            onPress={() => (landing && currentLanding !== glitch.id ? setConfirmedLanding(glitch.id) : onShop())}
+            style={[styles.secondaryBtn, { flex: 1 }]}
+          >
             <MaterialCommunityIcons name="storefront-outline" size={18} color={colors.onSurfaceSecondary} />
             <Text style={[styles.secondaryText, { color: colors.onSurfaceSecondary }]}>
-              {opening ? "ZIEL WIRD GEPRÜFT…" : target?.purchase ? "ZUR GEPRÜFTEN SEITE" : "ZUM ORIGINAL-BEITRAG"}
+              {opening
+                ? "ZIEL WIRD GEPRÜFT…"
+                : landing
+                  ? currentLanding === glitch.id
+                    ? "STARTSEITE JETZT ÖFFNEN"
+                    : "ZUR STARTSEITE"
+                  : target?.purchase
+                    ? "ZUR GEPRÜFTEN SEITE"
+                    : "ZUM ORIGINAL-BEITRAG"}
             </Text>
             {isAd ? <Text testID="detail-ad-label" style={styles.adTag}>ANZEIGE</Text> : null}
           </Pressable>
@@ -404,6 +436,24 @@ const useStyles = makeStyles((c) => ({
     borderRadius: radius.sm,
     paddingHorizontal: 4,
     paddingVertical: 1,
+  },
+  landingHint: {
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: c.info,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    marginBottom: spacing.xs,
+    backgroundColor: c.surfaceSecondary,
+  },
+  landingHintText: {
+    fontFamily: fonts.mono,
+    fontSize: 9,
+    letterSpacing: 1,
+    textAlign: "center",
+    color: c.info,
   },
   headerRow: {
     flexDirection: "row",
