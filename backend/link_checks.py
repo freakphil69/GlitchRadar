@@ -1,6 +1,7 @@
 """Conservative purchase-link checks. Missing evidence is never a pass."""
 import ipaddress
 import json
+import math
 import re
 from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
@@ -12,6 +13,15 @@ from http_limits import bounded_get
 
 CHECK_TTL = timedelta(minutes=15)
 MAX_PAGE_BYTES = 2 * 1024 * 1024
+
+
+def valid_price(value):
+    """Expected/saved prices are finite nonnegative numbers, never booleans."""
+    try:
+        return (isinstance(value, (int, float)) and not isinstance(value, bool)
+                and math.isfinite(value) and value >= 0)
+    except (OverflowError, TypeError, ValueError):
+        return False
 
 
 def valid_action_href(href):
@@ -61,7 +71,8 @@ class SalePage(HTMLParser):
         attrs = dict(attrs)
         inherited = bool(self._tags and self._tags[-1][1])
         blocked = (inherited or "hidden" in attrs or "inert" in attrs
-                   or tag == "template" or tag == "fieldset" and "disabled" in attrs
+                   or tag in {"template", "script", "style", "noscript"}
+                   or tag == "fieldset" and "disabled" in attrs
                    or attrs.get("aria-hidden", "").strip().lower() == "true"
                    or attrs.get("aria-disabled", "").strip().lower() == "true"
                    or bool(re.search(r"display\s*:\s*none|visibility\s*:\s*(?:hidden|collapse)", attrs.get("style", ""), re.I)))
@@ -115,7 +126,7 @@ def page_matches(html, product_id, price, currency):
     A title similarity score, HTTP 200, AggregateOffer/from-price, or a stock
     statement alone is insufficient. JS-only/bot-blocked shops remain unverified.
     """
-    if not product_id or price is None:
+    if not product_id or not valid_price(price):
         return False
     page = SalePage()
     page.feed(html)
@@ -159,10 +170,13 @@ def page_matches(html, product_id, price, currency):
                         except (ValueError, TypeError, AttributeError):
                             continue
                     try:
+                        if isinstance(offer.get("price"), bool):
+                            continue
                         actual = float(offer.get("price"))
-                    except (TypeError, ValueError):
+                    except (TypeError, ValueError, OverflowError):
                         continue
-                    if (abs(actual - price) <= 0.005 and offer.get("priceCurrency") == currency
+                    if (valid_price(actual) and abs(actual - price) <= 0.005
+                            and offer.get("priceCurrency") == currency
                             and offer.get("availability") in {"https://schema.org/InStock", "http://schema.org/InStock"}):
                         return True
         except (ValueError, TypeError, RecursionError):
@@ -172,6 +186,8 @@ def page_matches(html, product_id, price, currency):
 
 def purchase_link_allowed(check, *, url, title, product_id, price, currency, now):
     if not isinstance(check, dict) or check.get("passed") is not True:
+        return False
+    if not valid_price(price) or not valid_price(check.get("price")):
         return False
     try:
         stamp = datetime.fromisoformat(str(check["checked_at"]).replace("Z", "+00:00"))
@@ -189,7 +205,7 @@ async def check_product_link(client, *, url, title, product_id, price, currency,
     proof = dict(url=url, title=title, product_id=product_id, price=price, currency=currency,
                  checked_at=datetime.now(timezone.utc).isoformat(), passed=False)
     target = url
-    if not product_id or price is None:
+    if not product_id or not valid_price(price):
         return {**proof, "reason": "Produktkennung oder eindeutiger Preis fehlt"}
     try:
         for _ in range(6):

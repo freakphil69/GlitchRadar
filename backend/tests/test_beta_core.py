@@ -67,6 +67,32 @@ def test_unchecked_product_path_is_not_a_purchase_link(server):
     assert item["link_status"] == "unverified"
 
 
+@pytest.mark.parametrize("boolean_price", [True, False])
+def test_saved_boolean_price_proof_cannot_unlock_detail_purchase_link(server, boolean_price):
+    async def run():
+        url = "https://www.amazon.de/dp/B012345678"
+        proof = dict(passed=True, url=url, title="Testfund", product_id="exact",
+                     price=boolean_price, currency="EUR",
+                     checked_at=server._now().isoformat())
+        doc = server.GlitchDoc(
+            title="Testfund", shop="Amazon", type="deal", url=url,
+            product_id="exact", glitched_price=int(boolean_price), link_check=proof,
+            source_url="https://www.mydealz.de/deals/testfund",
+        )
+        await server.db.glitches.insert_one(doc.to_mongo())
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=server.app), base_url="http://test"
+        ) as client:
+            # Reload the saved offer through the same API the app uses.
+            response = await client.get(f"/api/glitches/{doc.id}")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["url"] is None
+            assert data["affiliate_url"] is None
+            assert data["link_status"] == "unverified"
+    asyncio.run(run())
+
+
 def test_direct_pass_does_not_authorize_unchecked_affiliate(server, monkeypatch):
     monkeypatch.setenv("AMAZON_PARTNER_TAG", "offline-test")
     url = "https://www.amazon.de/dp/B012345678"

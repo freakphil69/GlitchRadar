@@ -1,5 +1,46 @@
 # GlitchRadar: Beta-Prüfstand
 
+## Reparaturlauf vom 12. November 2026
+
+Die Kauf-Link-Prüfung wurde mit neuen deterministischen Gegenproben weiter
+abgesichert. Der ursprüngliche Lauf von
+`backend/tests/test_purchase_evidence_regressions.py` hatte 22 Fehlschläge bei
+14 bestandenen Fällen: Script-/Style-/Noscript-Inhalte konnten Kauftexte
+vortäuschen oder echte Kauftexte negieren; Wahrheitswerte und negative Preise
+konnten außerdem als Preisnachweis durchgehen. Gespeicherte Nachweise
+akzeptierten zusätzlich ungültige Preistypen und unendliche Werte.
+
+`link_checks.py` ignoriert jetzt nicht sichtbare Script-/Style-/Noscript-Inhalte
+bei der Erkennung einer Kaufaktion, liest JSON-LD aber weiterhin aus. Erwartete
+und gespeicherte Preise müssen endliche, nicht negative Zahlen sein;
+Wahrheitswerte sind ausdrücklich ausgeschlossen. Händlerpreise dürfen weiterhin
+übliche numerische JSON-Zeichenketten sein, werden aber ebenfalls auf endliche,
+nicht negative Werte geprüft. Kostenlose Angebote mit Preis null bleiben erlaubt.
+
+Nach der Korrektur bestehen lokal:
+
+- 195 Offline-Backend-Tests für Kernablauf, Kostenbremse, Feeds und Kaufnachweise.
+  Darin sind die 36 neuen Gegenproben und zwei Detail-API-Tests enthalten, die
+  ein gespeichertes Angebot erneut laden und falsche Wahrheitswert-Preisnachweise
+  zurückweisen.
+- Weitere fünf HTML-Bereinigungstests, getrennt von neun nicht erneut
+  ausgeführten Live-Tests.
+- Alle 33 Frontend-Tests und `npx tsc --noEmit`.
+- `git diff --check`.
+
+Der dedizierte GitHub-Linkcheck wurde um die neuen Gegenproben und die schon
+vorhandenen HTTP-/Weiterleitungsprüfungen erweitert. Dieser Bericht beschreibt
+lokale Ergebnisse, nicht das Ergebnis eines noch ausstehenden CI-Laufs.
+
+Die neun alten Live-HTML-Prüfungen lieferten beim ersten Diagnoseversuch HTTP 404
+aus der Vorschau und sind damit nicht bestanden. Der frühere fehlgeschlagene
+vollständige GitHub-Testlauf ist hiermit ebenfalls nicht repariert oder
+nachträglich freigegeben; seine Job-Logs waren über die verfügbare API nicht
+abrufbar. Es gab kein Live-Deployment, keine neue reale Angebotsstichprobe und
+keinen signierten Android-/Store-Kauftest.
+
+## Historischer Prüfstand vom 9. November 2026
+
 Stand: 9. November 2026. Ziel ist ein zuverlässiger Start und der Kernablauf „Funde laden, suchen, öffnen und zur richtigen Quelle gelangen“. Die Beta-Korrekturen wurden mit dem Hauptzweig zusammengeführt und gemeinsam lokal geprüft. Eine anschließende Prüfung von 40 echten Angeboten ist dokumentiert, aber die Beta bleibt wegen Angebotsfehlern, unvollständiger Kaufabnahme und eines kritischen Speicherbefunds gesperrt.
 
 ## Aktueller Ressourcen- und Live-Befund
