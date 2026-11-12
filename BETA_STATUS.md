@@ -29,8 +29,11 @@ Nach der Korrektur bestehen lokal:
 - `git diff --check`.
 
 Der dedizierte GitHub-Linkcheck wurde um die neuen Gegenproben und die schon
-vorhandenen HTTP-/Weiterleitungsprüfungen erweitert. Dieser Bericht beschreibt
-lokale Ergebnisse, nicht das Ergebnis eines noch ausstehenden CI-Laufs.
+vorhandenen HTTP-/Weiterleitungsprüfungen erweitert. Der zugehörige
+[GitHub-Actions-Lauf](https://github.com/freakphil69/GlitchRadar/actions/runs/43315645685)
+für Commit `d58c6a6` wurde anschließend mit Status `success` abgeschlossen.
+Die übrigen oben genannten Ergebnisse sind lokale Prüfungen, kein vollständiger
+grüner CI-Lauf aller Backend-/Live-Tests.
 
 Die neun alten Live-HTML-Prüfungen lieferten beim ersten Diagnoseversuch HTTP 404
 aus der Vorschau und sind damit nicht bestanden. Der frühere fehlgeschlagene
