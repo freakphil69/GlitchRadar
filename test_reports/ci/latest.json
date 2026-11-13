@@ -1,0 +1,16 @@
+{
+  "tested_commit": "ace9dec44bdac20f4b510b4f717c2dc4f037b25c",
+  "run_url": "https://github.com/freakphil69/GlitchRadar/actions/runs/43445073116",
+  "backend": {
+    "job_result": "failure",
+    "counts": null,
+    "failures": [],
+    "report_error": "No JUnit report: tests may not have started or collection/setup failed."
+  },
+  "frontend_job_result": "success",
+  "log_tails": {
+    "beta.log": "est'\n  ...\n# Subtest: purchase success is shown only when the returned store info contains active PRO\nok 25 - purchase success is shown only when the returned store info contains active PRO\n  ---\n  duration_ms: 180.360214\n  type: 'test'\n  ...\n# Subtest: restore reports active PRO or no subscription and handles unavailable store\nok 26 - restore reports active PRO or no subscription and handles unavailable store\n  ---\n  duration_ms: 123.916797\n  type: 'test'\n  ...\n# Subtest: no annual offer for unavailable, monthly-only, loading or already-subscribed states\nok 27 - no annual offer for unavailable, monthly-only, loading or already-subscribed states\n  ---\n  duration_ms: 175.259903\n  type: 'test'\n  ...\n# Subtest: only an exact fresh proof exposes a purchase target\nok 28 - only an exact fresh proof exposes a purchase target\n  ---\n  duration_ms: 1.342168\n  type: 'test'\n  ...\n# Subtest: a stale cached affiliate cannot bypass the source fallback\nok 29 - a stale cached affiliate cannot bypass the source fallback\n  ---\n  duration_ms: 0.169355\n  type: 'test'\n  ...\n# Subtest: a checked product does not authorize an unchecked affiliate redirect\nok 30 - a checked product does not authorize an unchecked affiliate redirect\n  ---\n  duration_ms: 0.172441\n  type: 'test'\n  ...\n# Subtest: unsafe or malformed source URLs are never opened\nok 31 - unsafe or malformed source URLs are never opened\n  ---\n  duration_ms: 0.219598\n  type: 'test'\n  ...\n# Subtest: merge preserves the current Android and iOS application identifiers\nok 32 - merge preserves the current Android and iOS application identifiers\n  ---\n  duration_ms: 1.070593\n  type: 'test'\n  ...\n# Subtest: release build remains an AAB with draft submission to the internal test track\nok 33 - release build remains an AAB with draft submission to the internal test track\n  ---\n  duration_ms: 0.223616\n  type: 'test'\n  ...\n1..33\n# tests 33\n# suites 0\n# pass 33\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 3303.739852\nDone in 3.40s.\n",
+    "typescript.log": "yarn run v1.22.22\n$ /home/runner/work/GlitchRadar/GlitchRadar/frontend/node_modules/.bin/tsc --noEmit\nDone in 6.10s.\n"
+  },
+  "scope": "Isolated CI only; no deployment, Android device test, or store release."
+}
