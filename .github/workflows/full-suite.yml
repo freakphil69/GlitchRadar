@@ -2,8 +2,13 @@ name: Isolated full test suite
 on:
   workflow_dispatch:
   push:
+    branches:
+      - fix/verified-link-admission
     paths:
       - '.github/workflows/full-suite.yml'
+      - 'backend/**'
+      - 'frontend/**'
+      - 'tests/**'
 permissions:
   contents: read
 jobs:
@@ -28,6 +33,8 @@ jobs:
       PYTHONPATH: backend
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -77,6 +84,8 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -112,3 +121,84 @@ jobs:
           TYPES_RESULT: ${{ steps.types.outcome }}
         run: |
           test "$BETA_RESULT" = success && test "$TYPES_RESULT" = success
+  report:
+    needs: [backend, frontend]
+    if: ${{ always() && github.ref == 'refs/heads/fix/verified-link-admission' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: '*-test-results'
+          path: ci-results
+          merge-multiple: true
+      - name: Build machine-readable result
+        env:
+          BACKEND_RESULT: ${{ needs.backend.result }}
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          
+          root = Path('ci-results')
+          backend = {'job_result': os.environ['BACKEND_RESULT'], 'counts': None, 'failures': []}
+          xml = root / 'backend.xml'
+          if xml.exists():
+              try:
+                  cases = list(ET.parse(xml).iter('testcase'))
+                  backend['counts'] = dict(total=len(cases), failed=0, errors=0, skipped=0, passed=0)
+                  for case in cases:
+                      failure, error, skipped = case.find('failure'), case.find('error'), case.find('skipped')
+                      kind = 'failed' if failure is not None else 'errors' if error is not None else 'skipped' if skipped is not None else 'passed'
+                      backend['counts'][kind] += 1
+                      issue = failure if failure is not None else error
+                      if issue is not None and len(backend['failures']) < 10:
+                          backend['failures'].append({'test': case.get('name'), 'class': case.get('classname'), 'kind': kind, 'message': issue.get('message', '')[:500], 'traceback': (issue.text or '')[-2000:]})
+              except (ET.ParseError, OSError, ValueError) as exc:
+                  backend['report_error'] = str(exc)
+          else:
+              backend['report_error'] = 'No JUnit report: tests may not have started or collection/setup failed.'
+          logs = {}
+          for name in ('server.log', 'beta.log', 'typescript.log'):
+              path = root / name
+              if path.exists():
+                  logs[name] = path.read_text(errors='replace')[-2000:]
+          report = {'tested_commit': os.environ['GITHUB_SHA'], 'run_url': os.environ['RUN_URL'], 'backend': backend, 'frontend_job_result': os.environ['FRONTEND_RESULT'], 'log_tails': logs, 'scope': 'Isolated CI only; no deployment, Android device test, or store release.'}
+          Path('test_reports/ci').mkdir(parents=True, exist_ok=True)
+          Path('test_reports/ci/latest.json').write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
+          PY
+      - name: Publish result without changing application code
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const {owner, repo} = context.repo;
+            const branch = 'fix/verified-link-admission';
+            const path = 'test_reports/ci/latest.json';
+            const head = await github.rest.git.getRef({owner, repo, ref: `heads/${branch}`});
+            if (head.data.object.sha !== context.sha) {
+              core.notice('Newer branch revision exists; not publishing a stale result.');
+              return;
+            }
+            let sha;
+            try {
+              const current = await github.rest.repos.getContent({owner, repo, path, ref: branch});
+              sha = current.data.sha;
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+            await github.rest.repos.createOrUpdateFileContents({
+              owner, repo, branch, path, sha,
+              message: `ci: record test result for ${context.sha.slice(0, 12)}`,
+              content: Buffer.from(fs.readFileSync(path)).toString('base64')
+            });
