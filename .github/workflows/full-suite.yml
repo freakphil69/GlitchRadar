@@ -1,4 +1,4 @@
-# Fresh verification run after MongoDB startup fix.
+# Fresh verification run after backend test fixes (commit 603a6ea).
 name: Isolated full test suite
 on:
   workflow_dispatch:
