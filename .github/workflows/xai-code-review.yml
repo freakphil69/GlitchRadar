@@ -1,0 +1,20 @@
+name: xAI Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    name: xAI Code Review
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: xAI Code Review
+        uses: tarmojussila/xai-code-review@v0.1.1
+        with:
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
