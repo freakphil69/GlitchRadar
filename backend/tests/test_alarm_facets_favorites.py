@@ -80,19 +80,25 @@ def seed_alarm_glitches():
                 "enriched": False, "instructions": [], "tips": [],
             },
         ]
-        await db.glitches.insert_many(docs)
-        return [str(d["_id"]) for d in docs], [d["source_url"] for d in docs]
+        try:
+            await db.glitches.insert_many(docs)
+            return [str(d["_id"]) for d in docs], [d["source_url"] for d in docs]
+        finally:
+            client.close()
 
-    ids, urls = asyncio.get_event_loop().run_until_complete(seed())
+    ids, urls = asyncio.run(seed())
 
     yield ids
 
     async def cleanup():
         client = AsyncIOMotorClient(MONGO_URL)
         db = client[DB_NAME]
-        await db.glitches.delete_many({"source_url": {"$in": urls}})
+        try:
+            await db.glitches.delete_many({"source_url": {"$in": urls}})
+        finally:
+            client.close()
 
-    asyncio.get_event_loop().run_until_complete(cleanup())
+    asyncio.run(cleanup())
 
 
 # ---------- /api/alarm ----------
@@ -173,7 +179,7 @@ def test_glitches_filter_by_category(session, seed_alarm_glitches):
         assert g["category"] == "TestCategoryExpiring"
 
 
-def test_glitches_empty_filter_regression(session):
+def test_glitches_empty_filter_regression(session, seed_alarm_glitches):
     """Empty shops/categories = no filtering (regression for favourites OFF)."""
     r = session.get(f"{API}/glitches", params={"shops": "", "categories": ""})
     assert r.status_code == 200

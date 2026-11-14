@@ -204,11 +204,16 @@ def test_scan_dedupe_and_concurrent_409(session):
         for g in payload["glitches"]:
             assert g["source_url"].startswith("https://")
 
-    # Dedupe: a second manual scan right after should yield 0 or very few new finds
+    # Dedupe: a second manual scan right after a completed scan should yield 0 or very few new finds
     r2 = requests.post(f"{API}/scan", timeout=120)
     assert r2.status_code in (200, 409, 502)
-    if r2.status_code == 200:
+    if first_resp.status_code == 200 and r2.status_code == 200:
         assert r2.json()["scan"]["found_count"] <= 5
+    elif first_resp.status_code != 200 and r2.status_code == 200:
+        r3 = requests.post(f"{API}/scan", timeout=120)
+        assert r3.status_code in (200, 409, 502)
+        if r3.status_code == 200:
+            assert r3.json()["scan"]["found_count"] <= 5
 
     # Separately exercise the concurrency guard via a tight race
     results = {}
@@ -232,6 +237,8 @@ def test_enrich_once(session):
     if not target:
         pytest.skip("all glitches already enriched")
     r = requests.post(f"{API}/glitches/{target['id']}/enrich", timeout=120)
+    if r.status_code == 503 and "Optionale KI-Analyse nicht eingerichtet" in r.text:
+        pytest.skip("optional AI enrichment not configured on target backend")
     assert r.status_code == 200, f"enrich: {r.status_code} {r.text[:200]}"
     body = r.json()
     assert body["enriched"] is True
