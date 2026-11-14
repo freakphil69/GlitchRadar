@@ -1,0 +1,44 @@
+name: EAS Android Build
+on:
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: EAS build profile
+        required: true
+        default: production
+        type: choice
+        options:
+          - production
+          - preview
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Check EXPO_TOKEN secret
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          if [ -z "$EXPO_TOKEN" ]; then
+            echo "EXPO_TOKEN secret is missing. Add it under Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Install locked frontend dependencies
+        run: |
+          corepack enable
+          yarn install --frozen-lockfile --non-interactive
+      - name: Build Android artifact via EAS
+        run: eas build --platform android --profile "${{ inputs.profile || 'production' }}" --non-interactive
