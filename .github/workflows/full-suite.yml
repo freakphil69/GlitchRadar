@@ -1,3 +1,4 @@
+# Fresh verification run after MongoDB startup fix.
 name: Isolated full test suite
 on:
   workflow_dispatch:
