@@ -10,14 +10,6 @@ jobs:
   backend:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    services:
-      mongo:
-        image: mongo:7
-        ports:
-          - 27017:27017
-        options: >-
-          --health-cmd 'mongosh --eval "db.adminCommand({ping:1})"'
-          --health-interval 10s --health-timeout 5s --health-retries 10
     env:
       MONGO_URL: mongodb://127.0.0.1:27017
       DB_NAME: glitchradar_ci
@@ -28,6 +20,24 @@ jobs:
       PYTHONPATH: backend
     steps:
       - uses: actions/checkout@v4
+      - name: Start isolated MongoDB with diagnostics
+        run: |
+          mkdir -p ci-results
+          set -o pipefail
+          docker info >ci-results/docker-info.log 2>&1
+          pulled=false
+          for attempt in 1 2 3; do
+            if docker pull mongo:7 2>&1 | tee -a ci-results/mongo-pull.log; then pulled=true; break; fi
+            sleep 10
+          done
+          test "$pulled" = true
+          docker run -d --name glitchradar-ci-mongo -p 127.0.0.1:27017:27017 mongo:7
+          for attempt in $(seq 1 60); do
+            if docker exec glitchradar-ci-mongo mongosh --quiet --eval 'quit(db.adminCommand({ping:1}).ok ? 0 : 1)' >>ci-results/mongo-health.log 2>&1; then exit 0; fi
+            sleep 2
+          done
+          docker logs glitchradar-ci-mongo
+          exit 1
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -62,6 +72,12 @@ jobs:
           requests.sessions.Session.request = local_only
           raise SystemExit(pytest.main(['-c', '/dev/null', 'backend/tests', 'tests', '-ra', '--junitxml=ci-results/backend.xml']))
           PY
+      - name: Collect MongoDB diagnostics
+        if: always()
+        run: |
+          mkdir -p ci-results
+          docker logs glitchradar-ci-mongo >ci-results/mongo.log 2>&1 || true
+          docker inspect glitchradar-ci-mongo >ci-results/mongo-inspect.json 2>&1 || true
       - name: Upload backend results and server log
         if: always()
         uses: actions/upload-artifact@v4
@@ -69,6 +85,9 @@ jobs:
           name: backend-test-results
           path: ci-results/
           retention-days: 7
+      - name: Stop isolated MongoDB
+        if: always()
+        run: docker rm -f glitchradar-ci-mongo || true
   frontend:
     runs-on: ubuntu-latest
     timeout-minutes: 15
