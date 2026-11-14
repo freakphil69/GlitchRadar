@@ -196,24 +196,31 @@ def test_scan_dedupe_and_concurrent_409(session):
     else:
         pytest.skip("background poller held lock >60s")
 
-    # First completed → fire a quick 2nd scan to assert dedupe (or race-free 409 won't fire now)
+    # First completed → fire follow-up scans to assert dedupe across 60-item batches
     assert first_resp.status_code in (200, 502)
+    seen_urls = set()
     if first_resp.status_code == 200:
         payload = first_resp.json()
         assert "glitches" in payload
         for g in payload["glitches"]:
             assert g["source_url"].startswith("https://")
+            seen_urls.add(g["source_url"])
 
-    # Dedupe: a second manual scan right after a completed scan should yield 0 or very few new finds
-    r2 = requests.post(f"{API}/scan", timeout=120)
-    assert r2.status_code in (200, 409, 502)
-    if first_resp.status_code == 200 and r2.status_code == 200:
-        assert r2.json()["scan"]["found_count"] <= 5
-    elif first_resp.status_code != 200 and r2.status_code == 200:
-        r3 = requests.post(f"{API}/scan", timeout=120)
-        assert r3.status_code in (200, 409, 502)
-        if r3.status_code == 200:
-            assert r3.json()["scan"]["found_count"] <= 5
+    # Dedupe: consecutive scans never return duplicate source_urls and eventually yield <= 5 new finds
+    last_count = None
+    for _ in range(6):
+        r2 = requests.post(f"{API}/scan", timeout=120)
+        assert r2.status_code in (200, 409, 502)
+        if r2.status_code == 200:
+            p2 = r2.json()
+            new_urls = {g["source_url"] for g in p2["glitches"]}
+            assert seen_urls.isdisjoint(new_urls), "duplicate source_url returned across scans"
+            seen_urls.update(new_urls)
+            last_count = p2["scan"]["found_count"]
+            if last_count <= 5:
+                break
+    if last_count is not None:
+        assert last_count <= 5
 
     # Separately exercise the concurrency guard via a tight race
     results = {}
