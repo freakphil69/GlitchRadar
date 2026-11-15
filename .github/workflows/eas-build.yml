@@ -13,6 +13,7 @@ on:
   push:
     paths:
       - '.github/workflows/eas-build.yml'
+      - 'frontend/app.json'
 permissions:
   contents: read
 jobs:
