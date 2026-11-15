@@ -1,4 +1,4 @@
-# Fresh verification run after logo-mark switch in Ticker and AppSplash.
+# Fresh verification run after adding merchantSearchTarget mock in test-detail-safety.cjs.
 name: Isolated full test suite
 on:
   workflow_dispatch:
@@ -123,8 +123,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: frontend-test-results
-          path: frontend/ci-results/
-          retention-days: 7
+          path: frontend/ci-results/\n          retention-days: 7
       - name: Preserve failing test status
         if: always()
         env:

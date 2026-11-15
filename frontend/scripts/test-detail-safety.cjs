@@ -33,6 +33,7 @@ function mount(overrides = {}, options = {}) {
     "@/src/lib/offer-target": {
       offerTarget: () => ({ url: item.source_url, purchase: false }),
       merchantLanding: () => item.landing ?? null,
+      merchantSearchTarget: () => item.landing ?? null,
       homepageClickHint: () => item.landing ? "HINT" : null,
       confirmedTarget: (data, confirm) => ({ url: confirm || !item.landing ? data.source_url : null, purchase: false, landing: confirm ? item.landing : null }),
     },
