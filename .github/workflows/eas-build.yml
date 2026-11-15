@@ -10,6 +10,9 @@ on:
         options:
           - production
           - preview
+  push:
+    paths:
+      - '.github/workflows/eas-build.yml'
 permissions:
   contents: read
 jobs:
