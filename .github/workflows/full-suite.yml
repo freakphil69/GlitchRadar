@@ -1,4 +1,4 @@
-# Fresh verification run after scan dedupe batch test fix.
+# Fresh verification run after merchant search target update.
 name: Isolated full test suite
 on:
   workflow_dispatch:

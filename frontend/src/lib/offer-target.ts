@@ -28,10 +28,10 @@ export function offerTarget(g: Glitch, now = Date.now()) {
     : { url: https(g.source_url), purchase: false };
 }
 
-// A merchant's homepage landing is not purchase evidence. With the user's explicit
-// confirmation, the app opens the homepage as a written path to the exact offer, while
+// A merchant's homepage or search landing is not purchase evidence. With the user's explicit
+// confirmation, the app opens the search/homepage as a written path to the exact offer, while
 // the copy stays honest that this is not the verified product target.
-// The path is created only from the configured shop homepage, never from a raw shop
+// The path is created only from the configured shop domains, never from a raw shop
 // string that could become an arbitrary domain.
 const SHOP_HOMEPAGES: Record<string, string> = {
   zalando: "https://www.zalando.de/",
@@ -60,23 +60,63 @@ const SHOP_HOMEPAGES: Record<string, string> = {
   apple: "https://www.apple.com/de/",
 };
 
+const SHOP_SEARCH_URLS: Record<string, (q: string) => string> = {
+  amazon: (q) => `https://www.amazon.de/s?k=${q}`,
+  "amazon marketplace": (q) => `https://www.amazon.de/s?k=${q}`,
+  otto: (q) => `https://www.otto.de/suche/${q}/`,
+  mediamarkt: (q) => `https://www.mediamarkt.de/de/search.html?query=${q}`,
+  saturn: (q) => `https://www.saturn.de/de/search.html?query=${q}`,
+  zalando: (q) => `https://www.zalando.de/katalog/?q=${q}`,
+  ebay: (q) => `https://www.ebay.de/sch/i.html?_nkw=${q}`,
+  kaufland: (q) => `https://www.kaufland.de/s/?search_value=${q}`,
+  lidl: (q) => `https://www.lidl.de/q/search?q=${q}`,
+  galaxus: (q) => `https://www.galaxus.de/de/search?q=${q}`,
+  notebooksbilliger: (q) => `https://www.notebooksbilliger.de/suche?q=${q}`,
+  cyberport: (q) => `https://www.cyberport.de/tools/search?query=${q}`,
+  alternate: (q) => `https://www.alternate.de/listing.xhtml?q=${q}`,
+  decathlon: (q) => `https://www.decathlon.de/search?Ntt=${q}`,
+  dm: (q) => `https://www.dm.de/search?query=${q}`,
+  rossmann: (q) => `https://www.rossmann.de/de/search/?text=${q}`,
+  douglas: (q) => `https://www.douglas.de/de/search?q=${q}`,
+  nike: (q) => `https://www.nike.com/de/w?q=${q}`,
+  adidas: (q) => `https://www.adidas.de/search?q=${q}`,
+  "about you": (q) => `https://www.aboutyou.de/suche?term=${q}`,
+  ikea: (q) => `https://www.ikea.com/de/de/search/?q=${q}`,
+};
+
 export function merchantLanding(g: Glitch) {
   return SHOP_HOMEPAGES[(g.shop ?? "").trim().toLowerCase()] ?? null;
 }
 
-// Number of additional clicks from the homepage to the exact offer, only shown when
-// the current target is a homepage landing rather than the verified product target.
+export function merchantSearchTarget(g: Glitch): string | null {
+  const key = (g.shop ?? "").trim().toLowerCase();
+  const builder = SHOP_SEARCH_URLS[key];
+  const rawTitle = (g.title ?? "").trim().slice(0, 120);
+  if (builder && rawTitle) {
+    return https(builder(encodeURIComponent(rawTitle)));
+  }
+  return merchantLanding(g);
+}
+
+// Hint shown only when the current target is a search/homepage landing rather than
+// the verified product target.
 export function homepageClickHint(g: Glitch, now = Date.now()) {
   if (offerTarget(g, now).purchase) return null;
-  return merchantLanding(g) ? "ZUSÄTZLICHES ANKLICKEN DER STARTSEITE ERFORDERLICH. DAS ANGEBOT MUSS DORT GESUCHT WERDEN." : null;
+  const search = merchantSearchTarget(g);
+  if (!search) return null;
+  const isSearch = search !== merchantLanding(g);
+  return isSearch
+    ? "DIREKTE SUCHE: MIT EINEM KLICK NAH AM ANGEBOT. KEIN VERIFIZIERTER KAUF-LINK."
+    : "ZUSÄTZLICHES ANKLICKEN DER STARTSEITE ERFORDERLICH. DAS ANGEBOT MUSS DORT GESUCHT WERDEN.";
 }
 
 export function confirmedTarget(g: Glitch, confirm: boolean, now = Date.now()):
   { url: string | null; purchase: boolean; landing: string | null } {
   const primary = offerTarget(g, now);
   if (primary.purchase) return { ...primary, landing: null };
-  // Only an explicit user confirmation can make a homepage target the action target.
-  // The product URL is never used here: a landing page is a manual search path, not
+  // Only an explicit user confirmation can make a search/homepage target the action target.
+  // The product URL is never used here: a search or landing page is a manual path, not
   // a direct product target that would bypass the server's purchase-link decision.
-  return { ...primary, url: confirm ? primary.url : null, landing: confirm ? merchantLanding(g) : null };
+  const landing = confirm ? (merchantSearchTarget(g) ?? merchantLanding(g)) : null;
+  return { ...primary, url: confirm ? primary.url : null, landing };
 }

@@ -20,7 +20,7 @@ import { Countdown } from "@/src/components/Countdown";
 import { useToast } from "@/src/components/Toast";
 import { fmtDateTime, fmtMoney, fmtPrice, imgSrc } from "@/src/lib/format";
 import { useEnrich, useGlitch, useReportDead } from "@/src/lib/queries";
-import { confirmedTarget, homepageClickHint, merchantLanding, offerTarget } from "@/src/lib/offer-target";
+import { confirmedTarget, homepageClickHint, merchantLanding, merchantSearchTarget, offerTarget } from "@/src/lib/offer-target";
 import { useIsStashed, useStashActions } from "@/src/lib/stash";
 import { RISK_LABELS, TYPE_LABELS } from "@/src/lib/types";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
@@ -75,10 +75,12 @@ export default function GlitchDetailScreen() {
   const isAd = !!target?.purchase && !!glitch?.affiliate_url && glitch.affiliate_url !== glitch.url;
   const clickHint = glitch ? homepageClickHint(glitch) : null;
   const landing = glitch ? merchantLanding(glitch) : null;
+  const searchTarget = glitch ? merchantSearchTarget(glitch) : null;
+  const isSearch = !!searchTarget && searchTarget !== landing;
 
-  // Homepage landing requires the user's explicit confirmation. After the first
-  // confirmed target, the next shop tap opens the exact merchant homepage, never
-  // the product URL: a homepage is a written search path, not purchase evidence.
+  // Homepage/search landing requires the user's explicit confirmation. After the first
+  // confirmed target, the next shop tap opens the exact merchant search/homepage, never
+  // the product URL: a search or homepage is a written path, not purchase evidence.
   const onShop = async () => {
     if (!glitch || opening) return;
     setOpening(true);
@@ -357,9 +359,7 @@ export default function GlitchDetailScreen() {
       <View style={[styles.ctaWrap, { paddingBottom: insets.bottom + 12 }]}>
         {clickHint ? (
           <View style={styles.landingHint} testID="detail-homepage-click-hint">
-            <Text style={styles.landingHintText}>
-              WEITERER KLICK AUF DIE STARTSEITE NÖTIG. DAS ANGEBOT MUSS DORT GESUCHT WERDEN.
-            </Text>
+            <Text style={styles.landingHintText}>{clickHint}</Text>
           </View>
         ) : null}
         <View style={{ flexDirection: "row", gap: spacing.sm }}>
@@ -390,8 +390,8 @@ export default function GlitchDetailScreen() {
                 ? "ZIEL WIRD GEPRÜFT…"
                 : landing
                   ? currentLanding === glitch.id
-                    ? "STARTSEITE JETZT ÖFFNEN"
-                    : "ZUR STARTSEITE"
+                    ? (isSearch ? "SUCHE JETZT ÖFFNEN" : "STARTSEITE JETZT ÖFFNEN")
+                    : (isSearch ? "DIREKT ZUR SUCHE" : "ZUR STARTSEITE")
                   : target?.purchase
                     ? "ZUR GEPRÜFTEN SEITE"
                     : "ZUM ORIGINAL-BEITRAG"}

@@ -7,7 +7,7 @@ const exports_ = {};
 vm.runInNewContext(ts.transpileModule(fs.readFileSync("src/lib/offer-target.ts", "utf8"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS },
 }).outputText, { exports: exports_, URL });
-const { offerTarget, merchantLanding, confirmedTarget, homepageClickHint } = exports_;
+const { offerTarget, merchantLanding, merchantSearchTarget, confirmedTarget, homepageClickHint } = exports_;
 const now = Date.now();
 const g = {
   title: "Exact model", product_id: "sku-black", status: "active", price_conflict: false,
@@ -46,21 +46,26 @@ test("unsafe or malformed source URLs are never opened", () => {
   }
 });
 
-test("a homepage landing requires explicit user confirmation and never exposes the product URL", () => {
+test("a homepage or search landing requires explicit user confirmation and never exposes the product URL", () => {
   assert.equal(merchantLanding({ ...g, shop: "Amazon" }), "https://www.amazon.de/");
+  assert.equal(merchantSearchTarget({ ...g, shop: "Amazon" }), "https://www.amazon.de/s?k=Exact%20model");
   assert.equal(merchantLanding({ ...g, shop: "Unknown Store" }), null);
+  assert.equal(merchantSearchTarget({ ...g, shop: "Unknown Store" }), null);
   const unverified = { ...g, link_check: null, link_status: "unverified", shop: "Amazon" };
   assert.equal(confirmedTarget(unverified, false, now).landing, null);
   const confirmed = confirmedTarget(unverified, true, now);
-  assert.equal(confirmed.landing, "https://www.amazon.de/");
+  assert.equal(confirmed.landing, "https://www.amazon.de/s?k=Exact%20model");
   assert.equal(confirmed.purchase, false);
   assert.ok(!("https://shop.example/product" === confirmed.url && !confirmed.purchase));
+  const fallbackConfirmed = confirmedTarget({ ...unverified, title: "" }, true, now);
+  assert.equal(fallbackConfirmed.landing, "https://www.amazon.de/");
   assert.equal(homepageClickHint(unverified, now) === null, false);
   assert.equal(homepageClickHint({ ...g }, now), null);
 });
 
 test("a raw arbitrary shop name is never turned into a homepage domain", () => {
   assert.equal(merchantLanding({ ...g, shop: "example.com/../../login" }), null);
+  assert.equal(merchantSearchTarget({ ...g, shop: "example.com/../../login" }), null);
   assert.equal(merchantLanding({ ...g, shop: "evil.example" }), null);
   assert.equal(merchantLanding({ ...g, shop: "Amazon " }), "https://www.amazon.de/");
 });
