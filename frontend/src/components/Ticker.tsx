@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Image, Pressable, Text, View } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -9,7 +9,6 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { fmtClock, fmtMoney } from "@/src/lib/format";
-import { Mascot } from "@/src/components/Mascot";
 import { fonts, makeStyles, useTheme } from "@/src/theme";
 
 export function Ticker({
@@ -35,7 +34,13 @@ export function Ticker({
   return (
     <View testID="ticker" style={styles.ticker}>
       <View testID="ticker-logo" accessible accessibilityLabel="GlitchRadar">
-        <Mascot pose="crossed" width={28} height={36} />
+        <Image
+          source={require("@/assets/images/logo-mark.png")}
+          style={{ width: 28, height: 28 }}
+          resizeMode="contain"
+          fadeDuration={0}
+          accessible={false}
+        />
       </View>
       <View style={styles.cell}>
         <Animated.View style={[styles.dot, dot]} />

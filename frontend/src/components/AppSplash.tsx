@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { AccessibilityInfo, Animated, StyleSheet, Text, useAnimatedValue, View } from "react-native";
+import { AccessibilityInfo, Animated, Image, StyleSheet, Text, useAnimatedValue, View } from "react-native";
 import * as SplashScreen from "expo-splash-screen";
 
-import { Mascot } from "@/src/components/Mascot";
 import { fonts, useTheme } from "@/src/theme";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -80,7 +79,13 @@ export function AppSplash() {
             }],
           }}
         >
-          <Mascot pose="crossed" width={190} height={220} />
+          <Image
+            source={require("@/assets/images/logo-mark.png")}
+            style={{ width: 170, height: 170 }}
+            resizeMode="contain"
+            fadeDuration={0}
+            accessible={false}
+          />
         </Animated.View>
       </View>
       <Text style={[styles.brand, { color: colors.brandPrimary, fontFamily: fonts.displayBold }]}>GLITCHRADAR</Text>

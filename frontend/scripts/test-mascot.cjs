@@ -17,7 +17,7 @@ function load(path, mocks = {}, globals = {}) {
     require(name) {
       if (name in mocks) return mocks[name];
       if (name === "react/jsx-runtime") return require(name);
-      if (name.endsWith(".webp")) return name;
+      if (name.endsWith(".webp") || name.endsWith(".png")) return name;
       throw new Error(`Unexpected dependency: ${name}`);
     },
   });
@@ -81,7 +81,7 @@ function mountSplash(reduced = false) {
       useRef: (value) => ({ current: value }),
     },
     "react-native": {
-      View: "View", Text: "Text", StyleSheet: { create: (s) => s, absoluteFill: {} },
+      View: "View", Text: "Text", Image: "Image", StyleSheet: { create: (s) => s, absoluteFill: {} },
       useAnimatedValue: (initial) => new Value(initial),
       AccessibilityInfo: {
         isReduceMotionEnabled: () => Promise.resolve(reduced),
@@ -103,14 +103,15 @@ function mountSplash(reduced = false) {
       preventAutoHideAsync: () => Promise.resolve(),
       hideAsync: () => { nativeHideCount++; return Promise.resolve(); },
     },
-    "@/src/components/Mascot": { Mascot: "Mascot" },
     "@/src/theme": theme,
   }, {
     setTimeout: (fn, ms) => { scheduled.push({ fn, ms }); return 7; },
     clearTimeout: (id) => cleared.push(id),
   });
   const tree = AppSplash();
-  assert.equal(elements(tree).find((n) => n.type === "Mascot").props.pose, "crossed");
+  const splashLogo = elements(tree).find((n) => n.type === "Image");
+  assert.ok(splashLogo);
+  assert.equal(splashLogo.props.source, "@/assets/images/logo-mark.png");
   const cleanups = effects.map((effect) => effect());
   return {
     tree, scheduled, cleared, cleanups, changeMotion,
@@ -159,34 +160,36 @@ test("glitch reveal runs once for 350ms on native driver, with reduced-motion fa
   }
 });
 
-test("visible branding uses the mascot instead of the old circle mark", () => {
-  for (const file of ["src/components/Ticker.tsx", "app/pro.tsx", "app/share-savings.tsx"]) {
+test("paywall and share screens keep using the mascot poses while ticker and splash use logo-mark", () => {
+  for (const file of ["app/pro.tsx", "app/share-savings.tsx"]) {
     const source = fs.readFileSync(file, "utf8");
     assert.match(source, /<Mascot /);
     assert.doesNotMatch(source, /assets\/images\/(?:logo-mark|logo-full|icon)\.png/);
   }
+  for (const file of ["src/components/Ticker.tsx", "src/components/AppSplash.tsx"]) {
+    const source = fs.readFileSync(file, "utf8");
+    assert.match(source, /assets\/images\/logo-mark\.png/);
+  }
 });
 
-test("the main ticker uses crossed-arm Otto instead of the previous logo", () => {
+test("the main ticker uses the new logo-mark", () => {
   const { Ticker } = load("src/components/Ticker.tsx", {
     react: { useEffect: () => {} },
-    "react-native": { View: "View", Text: "Text", Pressable: "Pressable" },
+    "react-native": { View: "View", Text: "Text", Pressable: "Pressable", Image: "Image" },
     "react-native-reanimated": {
       __esModule: true, default: { View: "AnimatedView" },
       useSharedValue: (value) => ({ value }),
       useAnimatedStyle: () => ({}),
     },
-    "@/src/components/Mascot": { Mascot: "Mascot" },
     "@/src/lib/format": { fmtClock: () => "", fmtMoney: () => "" },
     "@/src/theme": theme,
   });
   const nodes = elements(Ticker({ activeCount: 3 }));
-  const logo = nodes.find((node) => node.type === "Mascot");
+  const logo = nodes.find((node) => node.type === "Image");
   assert.ok(logo);
-  assert.equal(logo.props.pose, "crossed");
-  assert.ok(logo.props.width <= 32);
-  assert.ok(logo.props.height <= 40);
-  assert.equal(nodes.some((node) => node.type === "Image"), false);
+  assert.equal(logo.props.source, "@/assets/images/logo-mark.png");
+  assert.ok(logo.props.style.width <= 32);
+  assert.ok(logo.props.style.height <= 40);
 });
 
 test("native query focus pauses background reads and resumes on active, with cleanup", () => {
