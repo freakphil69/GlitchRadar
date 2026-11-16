@@ -25,41 +25,41 @@ export type ColorScheme = "light" | "dark";
 // The app ships a single dark terminal scheme; the "light" slot holds it so every
 // theme consumer always resolves to the obsidian palette.
 const light = {
-  // Surfaces: backgrounds, from the screen down to small fills.
-  surface: "#0D1117", // primary canvas, most of every screen
-  onSurface: "#E6EDF3", // text and icons on the canvas
-  surfaceSecondary: "#161B22", // cards, sheets, list rows
-  onSurfaceSecondary: "#C9D1D9", // text and icons on cards, sheets, rows
-  surfaceTertiary: "#21262D", // input backgrounds, chips, deepest nesting
+  // Surfaces: pure black canvas matching the GlitchRadar logo & splash.
+  surface: "#000000", // primary canvas, most of every screen
+  onSurface: "#FFFFFF", // text and icons on the canvas
+  surfaceSecondary: "#0A0D12", // cards, sheets, list rows
+  onSurfaceSecondary: "#E6EDF3", // text and icons on cards, sheets, rows
+  surfaceTertiary: "#141920", // input backgrounds, chips, deepest nesting
   onSurfaceTertiary: "#8B949E", // text on inputs and chips; also muted text
-  surfaceInverse: "#F0F6FC", // tooltips, snackbars, anything popping against the theme
-  onSurfaceInverse: "#0D1117", // text and icons on the inverse surface
+  surfaceInverse: "#FFFFFF", // tooltips, snackbars, anything popping against the theme
+  onSurfaceInverse: "#000000", // text and icons on the inverse surface
   muted: "#8B949E", // subdued text on surface: captions, timestamps, placeholders
 
-  // Brand: signal orange — urgency, countdowns, primary CTAs.
-  brand: "#FF5722",
+  // Brand: signal orange (#FF6B00) — urgency, countdowns, primary CTAs.
+  brand: "#FF6B00",
   onBrand: "#FFFFFF",
-  brandPrimary: "#FF5722", // primary CTA, active tab indicator, selected states
+  brandPrimary: "#FF6B00", // primary CTA, active tab indicator, selected states
   onBrandPrimary: "#FFFFFF",
-  brandSecondary: "#E64A19", // secondary CTA, pressed state
+  brandSecondary: "#E05A00", // secondary CTA, pressed state
   onBrandSecondary: "#FFFFFF",
-  brandTertiary: "#2A1713", // subtle brand fills, type badges, selected chips
-  onBrandTertiary: "#FFAB91",
+  brandTertiary: "#261200", // subtle brand fills, type badges, selected chips
+  onBrandTertiary: "#FFB380",
 
-  // Status: semantic only, never decorative.
-  success: "#238636",
+  // Status: radar green (#22C55E) for live deals/success, semantic only.
+  success: "#22C55E",
   onSuccess: "#FFFFFF",
   warning: "#D29922",
-  onWarning: "#0D1117",
+  onWarning: "#000000",
   error: "#F85149",
   onError: "#FFFFFF",
-  info: "#388BFd",
+  info: "#388BFD",
   onInfo: "#FFFFFF",
 
   // Lines
-  border: "#30363D", // hairline outline, 1pt max: inputs, cards
-  borderStrong: "#FF5722", // focus rings, selected outlines
-  divider: "#21262D", // subtle list separators
+  border: "#1F242D", // hairline outline, 1pt max: inputs, cards
+  borderStrong: "#FF6B00", // focus rings, selected outlines
+  divider: "#161B22", // subtle list separators
 };
 
 export type ThemeColors = typeof light;

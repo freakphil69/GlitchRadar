@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { AccessibilityInfo, Animated, Image, StyleSheet, Text, useAnimatedValue, View } from "react-native";
+import { AccessibilityInfo, Animated, Easing, Image, StyleSheet, Text, useAnimatedValue, View } from "react-native";
 import * as SplashScreen from "expo-splash-screen";
 
 import { fonts, useTheme } from "@/src/theme";
@@ -8,77 +8,130 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 
 const SHOW_MS = 1800;
 
-// One short native-driven reveal, never a loop; the radar rings remain static.
+// Short native-driven splash sequence: all 6 wings remain visible in the foreground
+// while the green radar sweep rotates behind the emblem and GLITCHRADAR glitches in.
 export function AppSplash() {
   const { colors } = useTheme();
   const [visible, setVisible] = useState(true);
-  const reveal = useAnimatedValue(1);
+  const sweep = useAnimatedValue(0);
+  const textGlitch = useAnimatedValue(1);
+  const exitGlitch = useAnimatedValue(1);
   const dismissed = useRef(false);
 
   useEffect(() => {
     let mounted = true;
     let motionDisabled = false;
-    let animation: Animated.CompositeAnimation | undefined;
+    let anim: Animated.CompositeAnimation | undefined;
+
     const settle = () => {
-      animation?.stop();
-      reveal.setValue(1);
+      anim?.stop();
+      sweep.setValue(0);
+      textGlitch.setValue(1);
+      exitGlitch.setValue(1);
     };
+
     const subscription = AccessibilityInfo.addEventListener("reduceMotionChanged", (enabled) => {
       motionDisabled = enabled;
       if (enabled) settle();
     });
-    AccessibilityInfo.isReduceMotionEnabled().then((reduceMotion) => {
-      if (!mounted || dismissed.current || reduceMotion || motionDisabled) return;
-      reveal.setValue(0);
-      animation = Animated.sequence(
-        [0.65, 0.25, 0.9, 0.6, 1].map((toValue) =>
-          Animated.timing(reveal, { toValue, duration: 70, useNativeDriver: true, isInteraction: false }),
-        ),
-      );
-      animation.start();
-    }).catch(() => { /* Keep the static logo if the accessibility check fails. */ });
+
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then((reduceMotion) => {
+        if (!mounted || dismissed.current || reduceMotion || motionDisabled) return;
+        sweep.setValue(0);
+        textGlitch.setValue(0);
+        exitGlitch.setValue(1);
+
+        anim = Animated.parallel([
+          Animated.timing(sweep, {
+            toValue: 1,
+            duration: 1200,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+            isInteraction: false,
+          }),
+          Animated.sequence([
+            Animated.delay(450),
+            Animated.timing(textGlitch, { toValue: 0.4, duration: 55, useNativeDriver: true, isInteraction: false }),
+            Animated.timing(textGlitch, { toValue: 0.9, duration: 55, useNativeDriver: true, isInteraction: false }),
+            Animated.timing(textGlitch, { toValue: 0.55, duration: 55, useNativeDriver: true, isInteraction: false }),
+            Animated.timing(textGlitch, { toValue: 1, duration: 75, useNativeDriver: true, isInteraction: false }),
+          ]),
+          Animated.sequence([
+            Animated.delay(1480),
+            Animated.timing(exitGlitch, { toValue: 0, duration: 280, useNativeDriver: true, isInteraction: false }),
+          ]),
+        ]);
+        anim.start();
+      })
+      .catch(() => {
+        /* Keep static splash if accessibility check fails. */
+      });
+
     return () => {
       mounted = false;
       subscription.remove();
-      animation?.stop();
+      anim?.stop();
     };
-  }, [reveal]);
+  }, [sweep, textGlitch, exitGlitch]);
 
   useEffect(() => {
     dismissed.current = false;
     SplashScreen.hideAsync().catch(() => {});
     const timer = setTimeout(() => {
       dismissed.current = true;
-      reveal.stopAnimation();
-      reveal.setValue(1);
+      sweep.stopAnimation();
+      textGlitch.stopAnimation();
+      exitGlitch.stopAnimation();
       setVisible(false);
     }, SHOW_MS);
     return () => {
       dismissed.current = true;
       clearTimeout(timer);
     };
-  }, [reveal]);
+  }, [sweep, textGlitch, exitGlitch]);
 
   if (!visible) return null;
 
+  const sweepRotate = sweep.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "360deg"],
+  });
+
   return (
-    <View
+    <Animated.View
       testID="app-splash"
       pointerEvents="none"
-      style={[StyleSheet.absoluteFill, styles.center, { backgroundColor: colors.surface, zIndex: 999 }]}
+      style={[
+        StyleSheet.absoluteFill,
+        styles.center,
+        {
+          backgroundColor: colors.surface,
+          zIndex: 999,
+          opacity: exitGlitch,
+          transform: [
+            {
+              translateX: exitGlitch.interpolate({
+                inputRange: [0, 0.4, 0.8, 1],
+                outputRange: [18, -10, 4, 0],
+              }),
+            },
+          ],
+        },
+      ]}
     >
       <View style={styles.radar}>
-        <View style={[styles.ring, { width: 266, height: 266, borderColor: colors.border }]} />
-        <View style={[styles.ring, { width: 206, height: 206, borderColor: colors.border }]} />
+        <View style={[styles.ring, { width: 266, height: 266, borderColor: colors.brandPrimary, opacity: 0.35 }]} />
+        <View style={[styles.ring, { width: 206, height: 206, borderColor: colors.brandPrimary, opacity: 0.55 }]} />
         <Animated.View
-          testID="splash-logo-reveal"
-          style={{
-            opacity: reveal.interpolate({ inputRange: [0, 0.25, 0.65, 1], outputRange: [0.15, 0.45, 0.75, 1] }),
-            transform: [{
-              translateX: reveal.interpolate({ inputRange: [0, 0.25, 0.6, 0.9, 1], outputRange: [-12, 9, -5, 3, 0] }),
-            }],
-          }}
+          style={[
+            styles.sweepContainer,
+            { transform: [{ rotate: sweepRotate }] },
+          ]}
         >
+          <View style={[styles.sweepLine, { backgroundColor: colors.success }]} />
+        </Animated.View>
+        <View testID="splash-logo-reveal" style={styles.logoForeground}>
           <Image
             source={require("@/assets/images/logo-mark.png")}
             style={{ width: 170, height: 170 }}
@@ -86,11 +139,26 @@ export function AppSplash() {
             fadeDuration={0}
             accessible={false}
           />
-        </Animated.View>
+        </View>
       </View>
-      <Text style={[styles.brand, { color: colors.brandPrimary, fontFamily: fonts.displayBold }]}>GLITCHRADAR</Text>
+
+      <Animated.View
+        style={{
+          opacity: textGlitch,
+          transform: [
+            {
+              translateX: textGlitch.interpolate({
+                inputRange: [0, 0.4, 0.55, 0.9, 1],
+                outputRange: [-10, 8, -4, 2, 0],
+              }),
+            },
+          ],
+        }}
+      >
+        <Text style={[styles.brand, { color: colors.onSurface, fontFamily: fonts.displayBold }]}>GLITCHRADAR</Text>
+      </Animated.View>
       <Text style={[styles.sub, { color: colors.muted, fontFamily: fonts.mono }]}>DEIN RADAR FÜR PREISFEHLER</Text>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -98,6 +166,23 @@ const styles = StyleSheet.create({
   center: { alignItems: "center", justifyContent: "center" },
   radar: { width: 280, height: 280, alignItems: "center", justifyContent: "center" },
   ring: { position: "absolute", borderRadius: 999, borderWidth: 1 },
-  brand: { fontSize: 34, letterSpacing: 3, marginTop: 8 },
-  sub: { fontSize: 10, letterSpacing: 1.5, marginTop: 12, textAlign: "center" },
+  sweepContainer: {
+    position: "absolute",
+    width: 266,
+    height: 266,
+    alignItems: "center",
+    justifyContent: "flex-start",
+    zIndex: 1,
+  },
+  sweepLine: {
+    width: 2,
+    height: 133,
+    borderRadius: 2,
+    opacity: 0.9,
+  },
+  logoForeground: {
+    zIndex: 2,
+  },
+  brand: { fontSize: 34, letterSpacing: 4, marginTop: 10 },
+  sub: { fontSize: 10, letterSpacing: 1.5, marginTop: 10, textAlign: "center" },
 });
