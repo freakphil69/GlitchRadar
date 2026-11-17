@@ -1,52 +1,52 @@
-"""Renders the GlitchRadar logo (radar + glitch blip) into all Expo icon assets."""
-from PIL import Image, ImageDraw
+"""Derive all active brand images from the existing approved mascot assets."""
+from pathlib import Path
+import base64
+from PIL import Image, ImageDraw, ImageFont
 
-S = 4  # supersampling factor
+ROOT = Path(__file__).resolve().parents[1]
+OUT = ROOT / "assets" / "images"
 BG = (13, 17, 23, 255)
-RING = (48, 54, 61, 255)
-CROSS = (33, 38, 45, 255)
-ORANGE = (255, 87, 34)
-RED = (248, 81, 73)
-PEACH = (255, 171, 145)
-OUT = "/app/frontend/assets/images/"
 
+def mascot(pose):
+    image = Image.open(OUT / "mascot" / f"{pose}.webp").convert("RGBA")
+    bounds = image.getchannel("A").getbbox()
+    if bounds is None:
+        raise ValueError(f"Empty mascot: {pose}")
+    return image.crop(bounds)
 
-def draw_mark(size: int, with_bg: bool, scale: float = 1.0) -> Image.Image:
-    n = size * S
-    img = Image.new("RGBA", (n, n), BG if with_bg else (0, 0, 0, 0))
-    k = n / 1024 * scale
-    off = n / 2 - 512 * k  # keep the mark centered when scaled down
+def mark(size, pose="neutral", background=False, fraction=0.9):
+    canvas = Image.new("RGBA", (size, size), BG if background else (0, 0, 0, 0))
+    source = mascot(pose)
+    ratio = min(size * fraction / source.width, size * fraction / source.height)
+    sprite = source.resize((max(1, round(source.width * ratio)), max(1, round(source.height * ratio))), Image.Resampling.LANCZOS)
+    canvas.alpha_composite(sprite, ((size - sprite.width) // 2, (size - sprite.height) // 2))
+    return canvas
 
-    def p(v):
-        return off + v * k
+def main():
+    outputs = {
+        "icon.png": mark(1024, background=True),
+        "adaptive-icon.png": mark(1024, fraction=0.60),
+        "favicon.png": mark(512, background=True),
+        "splash-image.png": mark(600, pose="crossed"),
+        "logo-mark.png": mark(512, pose="crossed"),
+        "app-image.png": mark(1024, background=True),
+    }
+    full = Image.new("RGBA", (1200, 440), (0, 0, 0, 0))
+    full.alpha_composite(mark(420), (0, 10))
+    draw = ImageDraw.Draw(full)
+    font = ImageFont.truetype(str(ROOT / "assets/fonts/BarlowCondensed-Bold.ttf"), 120)
+    draw.text((440, 150), "GlitchRadar", font=font, fill=(255, 107, 0, 255))
+    outputs["logo-full.png"] = full
+    for name, image in outputs.items():
+        image.save(OUT / name, optimize=True)
+        with Image.open(OUT / name) as check:
+            check.verify()
+    encoded = base64.b64encode((OUT / "icon.png").read_bytes()).decode("ascii")
+    (OUT / "logo.svg").write_text(f'<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024"><image width="1024" height="1024" href="data:image/png;base64,{encoded}"/></svg>\n', encoding="utf-8")
+    store = ROOT.parent / "store" / "playstore"
+    if store.is_dir():
+        mark(512, background=True).save(store / "icon_512.png", optimize=True)
+    print("Generated mascot icons, splash, ticker mark and full brand image.")
 
-    # sweep wedge on its own layer: pies overwrite (no stacking), outer edge strong, center faint
-    wedge = Image.new("RGBA", (n, n), (0, 0, 0, 0))
-    wd = ImageDraw.Draw(wedge)
-    steps = 40
-    for i in range(steps):
-        r = 340 * (1 - i / steps)
-        alpha = int(150 - 135 * (i / steps))
-        wd.pieslice([p(512 - r), p(512 - r), p(512 + r), p(512 + r)], -90, -30, fill=ORANGE + (alpha,))
-    img = Image.alpha_composite(img, wedge)
-    d = ImageDraw.Draw(img, "RGBA")
-    for r, w in ((340, 14), (232, 12), (124, 10)):
-        d.ellipse([p(512 - r), p(512 - r), p(512 + r), p(512 + r)], outline=RING, width=int(w * k))
-    d.line([p(172), p(512), p(852), p(512)], fill=CROSS, width=int(8 * k))
-    d.line([p(512), p(172), p(512), p(852)], fill=CROSS, width=int(8 * k))
-    # beam (angle -30deg) + round cap
-    d.line([p(512), p(512), p(806), p(342)], fill=ORANGE + (255,), width=int(18 * k))
-    d.ellipse([p(806 - 9), p(342 - 9), p(806 + 9), p(342 + 9)], fill=ORANGE + (255,))
-    # glitch blip: RGB-split offset blocks
-    d.rectangle([p(628), p(270), p(706), p(300)], fill=RED + (220,))
-    d.rectangle([p(648), p(306), p(706), p(328)], fill=PEACH + (230,))
-    d.rectangle([p(612), p(334), p(708), p(360)], fill=ORANGE + (255,))
-    d.ellipse([p(482), p(482), p(542), p(542)], fill=ORANGE + (255,))
-    return img.resize((size, size), Image.LANCZOS)
-
-
-draw_mark(1024, True).save(OUT + "icon.png")
-draw_mark(1024, False, scale=0.72).save(OUT + "adaptive-icon.png")  # Android safe zone
-draw_mark(512, True).save(OUT + "favicon.png")
-draw_mark(600, False, scale=0.9).save(OUT + "splash-image.png")
-print("ok")
+if __name__ == "__main__":
+    main()

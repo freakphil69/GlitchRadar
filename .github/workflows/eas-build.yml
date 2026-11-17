@@ -17,8 +17,12 @@ on:
       - 'frontend/app.json'
       - 'frontend/src/components/AppSplash.tsx'
       - 'frontend/assets/**'
+      - 'frontend/scripts/render_logo.py'
 permissions:
   contents: read
+concurrency:
+  group: eas-android-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -33,12 +37,19 @@ jobs:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: |
           if [ -z "$EXPO_TOKEN" ]; then
-            echo "EXPO_TOKEN secret is missing. Add it under Settings -> Secrets and variables -> Actions."
+            echo "EXPO_TOKEN secret is missing."
             exit 1
           fi
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Generate mascot branding before Expo reads the assets
+        run: |
+          python -m pip install 'Pillow==11.3.0'
+          python scripts/render_logo.py
       - uses: expo/expo-github-action@v8
         with:
           eas-version: latest
@@ -47,5 +58,25 @@ jobs:
         run: |
           corepack enable
           yarn install --frozen-lockfile --non-interactive
-      - name: Build Android artifact via EAS
-        run: eas build --platform android --profile "${{ inputs.profile || 'preview' }}" --non-interactive
+      - name: Regression tests and type check
+        run: |
+          yarn test:beta
+          yarn tsc --noEmit
+      - name: Validate Android bundle before spending EAS build quota
+        run: CI=1 yarn expo export --platform android --output-dir /tmp/glitchradar-mascot-export
+      - name: Submit validated source to Expo EAS
+        env:
+          PROFILE: ${{ inputs.profile || 'preview' }}
+        run: |
+          eas build --platform android --profile "$PROFILE" --non-interactive --no-wait --json > eas-build.json
+          cat eas-build.json
+      - name: Save EAS build reference and generated branding
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mascot-branding-and-eas-reference
+          path: |
+            frontend/eas-build.json
+            frontend/assets/images/*.png
+            frontend/assets/images/logo.svg
+          if-no-files-found: warn
