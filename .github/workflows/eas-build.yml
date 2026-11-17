@@ -5,15 +5,18 @@ on:
       profile:
         description: EAS build profile
         required: true
-        default: production
+        default: preview
         type: choice
         options:
           - production
           - preview
   push:
+    branches: [main]
     paths:
       - '.github/workflows/eas-build.yml'
       - 'frontend/app.json'
+      - 'frontend/src/components/AppSplash.tsx'
+      - 'frontend/assets/**'
 permissions:
   contents: read
 jobs:
@@ -45,4 +48,4 @@ jobs:
           corepack enable
           yarn install --frozen-lockfile --non-interactive
       - name: Build Android artifact via EAS
-        run: eas build --platform android --profile "${{ inputs.profile || 'production' }}" --non-interactive
+        run: eas build --platform android --profile "${{ inputs.profile || 'preview' }}" --non-interactive
