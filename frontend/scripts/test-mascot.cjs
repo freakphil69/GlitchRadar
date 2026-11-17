@@ -56,48 +56,19 @@ test("all mascot poses use small bundled static assets without image fade", () =
   assert.ok(totalBytes < 150_000, `Asset budget exceeded: ${totalBytes}`);
 });
 
-function mountSplash(reduced = false) {
+function mountSplash() {
   const effects = [];
   const scheduled = [];
   const cleared = [];
-  let hidden = false;
+  let visible = true;
   let nativeHideCount = 0;
-  let started = 0;
-  let stopped = 0;
-  let removed = false;
-  let changeMotion;
-  let steps;
-  const values = [];
-  class Value {
-    constructor(value) { this.value = value; }
-    setValue(value) { this.value = value; values.push(value); }
-    interpolate(config) { return config; }
-    stopAnimation() { stopped++; }
-  }
   const { AppSplash } = load("src/components/AppSplash.tsx", {
     react: {
       useEffect: (fn) => effects.push(fn),
-      useState: () => [true, (visible) => { hidden = !visible; }],
-      useRef: (value) => ({ current: value }),
+      useState: () => [visible, (value) => { visible = value; }],
     },
     "react-native": {
-      View: "View", Text: "Text", Image: "Image", StyleSheet: { create: (s) => s, absoluteFill: {} },
-      useAnimatedValue: (initial) => new Value(initial),
-      AccessibilityInfo: {
-        isReduceMotionEnabled: () => Promise.resolve(reduced),
-        addEventListener: (_, fn) => {
-          changeMotion = fn;
-          return { remove: () => { removed = true; } };
-        },
-      },
-      Animated: {
-        Value, View: "AnimatedView",
-        timing: (_, config) => config,
-        sequence: (configs) => {
-          steps = configs;
-          return { start: () => { started++; }, stop: () => { stopped++; } };
-        },
-      },
+      View: "View", Image: "Image", StyleSheet: { create: (s) => s },
     },
     "expo-splash-screen": {
       preventAutoHideAsync: () => Promise.resolve(),
@@ -109,55 +80,36 @@ function mountSplash(reduced = false) {
     clearTimeout: (id) => cleared.push(id),
   });
   const tree = AppSplash();
-  const splashLogo = elements(tree).find((n) => n.type === "Image");
-  assert.ok(splashLogo);
-  assert.equal(splashLogo.props.source, "@/assets/images/logo-mark.png");
   const cleanups = effects.map((effect) => effect());
-  return {
-    tree, scheduled, cleared, cleanups, changeMotion,
-    snapshot: () => ({ hidden, nativeHideCount, started, stopped, removed, steps, values }),
-  };
+  return { tree, scheduled, cleared, cleanups, render: AppSplash, snapshot: () => ({ visible, nativeHideCount }) };
 }
 
-test("splash has one dismiss timeout and clears it and animation on unmount", async () => {
+test("static mascot splash dismisses after 800ms and clears its timer on unmount", () => {
   const mounted = mountSplash();
-  const { scheduled, cleared, cleanups, snapshot } = mounted;
-  await Promise.resolve();
-  const { nativeHideCount } = snapshot();
-  assert.equal(nativeHideCount, 1);
-  assert.equal(scheduled.length, 1);
-  assert.equal(scheduled[0].ms, 1800);
-  scheduled[0].fn();
-  assert.equal(snapshot().hidden, true);
-  cleanups.forEach((cleanup) => cleanup());
-  assert.equal(snapshot().removed, true);
-  assert.ok(snapshot().stopped > 0);
-  assert.deepEqual(cleared, [7]);
+  assert.equal(mounted.snapshot().nativeHideCount, 1);
+  assert.equal(mounted.scheduled.length, 1);
+  assert.equal(mounted.scheduled[0].ms, 800);
+  mounted.scheduled[0].fn();
+  assert.equal(mounted.snapshot().visible, false);
+  assert.equal(mounted.render(), null);
+  mounted.cleanups.forEach((cleanup) => cleanup());
+  assert.deepEqual(mounted.cleared, [7]);
+  const early = mountSplash();
+  early.cleanups.forEach((cleanup) => cleanup());
+  assert.deepEqual(early.cleared, [7]);
 });
 
-test("glitch reveal runs once for 350ms on native driver, with reduced-motion fallback", async () => {
+test("splash contains only the static mascot without animation or radar intro", () => {
   const mounted = mountSplash();
-  await Promise.resolve();
-  assert.equal(mounted.snapshot().started, 1);
-  const { steps } = mounted.snapshot();
-  assert.equal(steps.length, 5);
-  assert.equal(steps.reduce((sum, step) => sum + step.duration, 0), 350);
-  assert.ok(steps.every((step) => step.useNativeDriver && step.isInteraction === false));
-  mounted.changeMotion(true);
-  assert.ok(mounted.snapshot().stopped > 0);
-  assert.equal(mounted.snapshot().values.at(-1), 1);
+  const nodes = elements(mounted.tree);
+  const images = nodes.filter((node) => node.type === "Image");
+  assert.equal(images.length, 1);
+  assert.equal(images[0].props.source, "@/assets/images/logo-mark.png");
+  assert.equal(images[0].props.fadeDuration, 0);
+  assert.deepEqual(nodes.map((node) => node.type), ["View", "Image"]);
+  const source = fs.readFileSync("src/components/AppSplash.tsx", "utf8");
+  assert.doesNotMatch(source, /Animated|useAnimatedValue|absoluteFillObject|mascot-wink/);
   mounted.cleanups.forEach((cleanup) => cleanup());
-  const reduced = mountSplash(true);
-  await Promise.resolve();
-  assert.equal(reduced.snapshot().started, 0);
-  reduced.cleanups.forEach((cleanup) => cleanup());
-  for (const dispose of ["unmount", "dismiss"]) {
-    const late = mountSplash();
-    if (dispose === "unmount") late.cleanups.forEach((cleanup) => cleanup());
-    else late.scheduled[0].fn();
-    await Promise.resolve();
-    assert.equal(late.snapshot().started, 0);
-  }
 });
 
 test("paywall and share screens keep using the mascot poses while ticker and splash use logo-mark", () => {

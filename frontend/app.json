@@ -7,67 +7,29 @@
     "icon": "./assets/images/icon.png",
     "scheme": "frontend",
     "userInterfaceStyle": "dark",
-    "ios": {
-      "supportsTablet": true,
-      "bundleIdentifier": "glitchradar.app"
-    },
+    "ios": { "supportsTablet": true, "bundleIdentifier": "glitchradar.app" },
     "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#000000"
-      },
+      "adaptiveIcon": { "foregroundImage": "./assets/images/adaptive-icon.png", "backgroundColor": "#0D1117" },
       "package": "glitchradar.app"
     },
-    "web": {
-      "bundler": "metro",
-      "output": "single",
-      "favicon": "./assets/images/favicon.png"
-    },
+    "web": { "bundler": "metro", "output": "single", "favicon": "./assets/images/favicon.png" },
     "plugins": [
       "expo-router",
-      [
-        "expo-splash-screen",
-        {
-          "image": "./assets/images/splash-image.png",
-          "imageWidth": 280,
-          "resizeMode": "contain",
-          "backgroundColor": "#000000"
-        }
-      ],
-      [
-        "expo-font",
-        {
-          "fonts": [
-            "./assets/fonts/BarlowCondensed-Regular.ttf",
-            "./assets/fonts/BarlowCondensed-SemiBold.ttf",
-            "./assets/fonts/BarlowCondensed-Bold.ttf",
-            "./assets/fonts/Satoshi-Regular.ttf",
-            "./assets/fonts/Satoshi-Medium.ttf",
-            "./assets/fonts/Satoshi-Bold.ttf",
-            "./assets/fonts/JetBrainsMono-Medium.ttf"
-          ]
-        }
-      ],
-      "expo-image",
-      "expo-secure-store",
-      "expo-web-browser",
-      "expo-status-bar",
-      "@react-native-vector-icons/material-design-icons",
-      "expo-sharing",
-      [
-        "expo-audio",
-        {
-          "microphonePermission": false
-        }
-      ]
+      ["expo-splash-screen", { "image": "./assets/images/splash-image.png", "imageWidth": 280, "resizeMode": "contain", "backgroundColor": "#0D1117" }],
+      ["expo-font", { "fonts": [
+        "./assets/fonts/BarlowCondensed-Regular.ttf",
+        "./assets/fonts/BarlowCondensed-SemiBold.ttf",
+        "./assets/fonts/BarlowCondensed-Bold.ttf",
+        "./assets/fonts/Satoshi-Regular.ttf",
+        "./assets/fonts/Satoshi-Medium.ttf",
+        "./assets/fonts/Satoshi-Bold.ttf",
+        "./assets/fonts/JetBrainsMono-Medium.ttf"
+      ] }],
+      "expo-image", "expo-secure-store", "expo-web-browser", "expo-status-bar",
+      "@react-native-vector-icons/material-design-icons", "expo-sharing",
+      ["expo-audio", { "microphonePermission": false }]
     ],
-    "experiments": {
-      "typedRoutes": true
-    },
-    "extra": {
-      "eas": {
-        "projectId": "ee978e42-a28b-4f71-9c24-dd62e8933c6a"
-      }
-    }
+    "experiments": { "typedRoutes": true },
+    "extra": { "eas": { "projectId": "ee978e42-a28b-4f71-9c24-dd62e8933c6a" } }
   }
 }
