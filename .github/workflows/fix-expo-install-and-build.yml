@@ -1,0 +1,82 @@
+name: Fix diagnosed Expo install and build Android APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - tools/fix-expo-install.py
+      - .github/workflows/fix-expo-install-and-build.yml
+permissions:
+  contents: write
+concurrency:
+  group: eas-android-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  repair-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.22.3'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply diagnosed dependency and toolchain correction
+        run: python tools/fix-expo-install.py
+      - name: Regenerate lock and verify exact EAS installation command
+        working-directory: frontend
+        run: |
+          npm install --global npm@11.19.1
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          npm ci --include=dev --no-audit --no-fund
+          npm ls @expo/metro-runtime
+      - name: Verify regression tests, offer policy, types, lint and Android bundle
+        working-directory: frontend
+        run: |
+          npm run test:beta
+          node --test scripts/test-offer-policy.cjs
+          npx --no-install tsc --noEmit
+          CI=1 npm run lint
+          CI=1 npx --no-install expo export --platform android --output-dir /tmp/glitchradar-install-fix-export
+      - name: Commit verified package and EAS correction
+        run: |
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add frontend/package.json frontend/package-lock.json frontend/eas.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'Fix Metro runtime lock mismatch and pin EAS Node and npm toolchain'
+            git push origin HEAD:main
+          fi
+      - name: Check Expo credential without printing it
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: test -n "$EXPO_TOKEN" || { echo 'EXPO_TOKEN missing; no build started.'; exit 1; }
+      - name: Generate existing mascot assets for build
+        working-directory: frontend
+        run: |
+          python -m pip install 'Pillow==11.3.0'
+          python scripts/render_logo.py
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Build corrected Android preview and await native result
+        working-directory: frontend
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: |
+          eas build --platform android --profile preview --non-interactive --wait --json > eas-build.json
+          node -e "const fs=require('fs');const r=JSON.parse(fs.readFileSync('eas-build.json','utf8'));const a=Array.isArray(r)?r:[r];if(!a.length||a.some(b=>b.status!=='FINISHED'))throw new Error('EAS build not FINISHED');for(const b of a){const link=b.artifacts?.buildUrl||b.artifacts?.applicationArchiveUrl||'';console.log(JSON.stringify({id:b.id,status:b.status,apk:link}));fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'Android '+b.status+' — '+b.id+'\n'+link+'\n');}"
+      - name: Preserve EAS result even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: repaired-android-eas-reference
+          path: frontend/eas-build.json
+          if-no-files-found: warn
