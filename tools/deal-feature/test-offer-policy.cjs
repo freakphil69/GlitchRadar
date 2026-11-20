@@ -1,0 +1,13 @@
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const ts = require('typescript');
+const exportsObject = {};
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/lib/offerPolicy.ts','utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText,{exports:exportsObject});
+const {isAllowedOffer,filterAllowed} = exportsObject;
+test('live animals and common pet accessories are excluded',()=>{ for(const title of ['Welpen abzugeben','Zierfische kaufen','Giraffe','Kratzbaum reduziert','Hundefutter']) assert.equal(isAllowedOffer({title}),false); });
+test('pet categories are excluded even with neutral titles',()=>assert.equal(isAllowedOffer({title:'Sonderangebot',category:'Tierbedarf'}),false));
+test('normal brands and food words are not blanket blocked',()=>{ for(const title of ['Puma Sneaker','Hotdog Gutschein','Mouse Gaming RGB','Fischstäbchen Angebot']) assert.equal(isAllowedOffer({title}),true); });
+test('filter preserves source objects and does not mutate input',()=>{const good={title:'Laptop'};const input=[good,{title:'Welpen'}];const out=filterAllowed(input);assert.equal(out.length,1);assert.equal(out[0],good);assert.equal(input.length,2);});
+test('missing optional fields do not crash',()=>assert.equal(isAllowedOffer({}),true));

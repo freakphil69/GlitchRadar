@@ -1,0 +1,56 @@
+name: Integrate and verify deal features
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - tools/deal-feature/**
+      - tools/integrate_deal_features.py
+      - .github/workflows/integrate-deal-features.yml
+permissions:
+  contents: write
+concurrency:
+  group: integrate-deal-features
+  cancel-in-progress: false
+jobs:
+  integrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.22.3'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install existing locked project
+        working-directory: frontend
+        run: |
+          npm install --global npm@11.19.1
+          npm ci --no-audit --no-fund
+      - name: Add SDK-compatible foreground location dependency
+        working-directory: frontend
+        run: CI=1 npx --no-install expo install expo-location --npm
+      - name: Integrate source changes
+        run: python tools/integrate_deal_features.py
+      - name: Verify before source commit
+        working-directory: frontend
+        run: |
+          npm run test:beta
+          node --test scripts/test-offer-policy.cjs
+          npx --no-install tsc --noEmit
+          CI=1 npm run lint
+          CI=1 npx --no-install expo export --platform android --output-dir /tmp/glitchradar-feature-export
+      - name: Commit verified implementation only
+        run: |
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- frontend/package.json frontend/package-lock.json frontend/app.json 'frontend/app/(tabs)/markets.tsx' 'frontend/app/(tabs)/_layout.tsx' 'frontend/app/(tabs)/stash.tsx' frontend/src/lib/offerPolicy.ts frontend/src/lib/queries.ts frontend/scripts/test-offer-policy.cjs
+          git commit -m 'Implement verified markets, manual city and foreground GPS selection and offer filtering'
+          git push origin HEAD:main
+          echo 'Integrated feature source after checks. Native EAS build, device tests, verified delivery territories, new merchant live feeds, ingestion moderation and recurring source discovery are still separate tasks.' >> "$GITHUB_STEP_SUMMARY"
