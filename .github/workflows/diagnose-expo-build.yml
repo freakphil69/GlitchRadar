@@ -1,0 +1,23 @@
+name: Diagnose existing Expo Android failure
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - tools/diagnose-expo-build.mjs
+      - .github/workflows/diagnose-expo-build.yml
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.22.3'
+      - name: Read existing Expo failure safely without creating a build
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: node tools/diagnose-expo-build.mjs
