@@ -1,0 +1,53 @@
+name: Apply and verify tested Android corrections
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - tools/apply_verified_android_fix.py
+      - .github/workflows/apply-verified-android-fix.yml
+permissions:
+  contents: write
+concurrency:
+  group: apply-verified-android-fix
+  cancel-in-progress: false
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.22.3'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply checksum-verified source changes
+        run: python tools/apply_verified_android_fix.py --apply
+      - name: Reproduce and verify tested npm lockfile
+        working-directory: frontend
+        run: |
+          npm install --global npm@11.19.1
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          echo 'faafce08584b54caf98aedd2963542e04042abfc846ac3a083c446aa6849b5fa  package-lock.json' | sha256sum --check
+          npm ci --no-audit --no-fund
+      - name: Verify source before committing
+        working-directory: frontend
+        run: |
+          npm run test:beta
+          npx --no-install tsc --noEmit
+          CI=1 npm run lint
+          CI=1 npx --no-install expo export --platform android --output-dir /tmp/glitchradar-android-check
+      - name: Commit only verified corrections
+        run: |
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- 'frontend/app/(tabs)/stash.tsx' frontend/package-lock.json frontend/scripts/test-mascot.cjs frontend/src/components/AppSplash.tsx frontend/src/components/RadarFeedback.tsx frontend/src/components/TrialEndBanner.tsx frontend/src/lib/useNow.ts
+          git commit -m 'Apply verified short mascot intro, lint fixes and complete npm lockfile'
+          git push origin HEAD:main
+          echo 'Saved source corrections. No native EAS build, APK or Play upload was produced.' >> "$GITHUB_STEP_SUMMARY"
