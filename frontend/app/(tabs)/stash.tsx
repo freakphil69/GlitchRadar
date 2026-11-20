@@ -1,3 +1,4 @@
+import { useNow } from "@/src/lib/useNow";
 import { useState } from "react";
 import { FlatList, Pressable, Text, View } from "react-native";
 import { useRouter } from "expo-router";
@@ -15,6 +16,7 @@ import { savingOf, TYPE_LABELS } from "@/src/lib/types";
 import { fonts, makeStyles, radius, spacing, useTheme } from "@/src/theme";
 
 export default function StashScreen() {
+  const now = useNow();
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { colors } = useTheme();
@@ -107,7 +109,7 @@ export default function StashScreen() {
         }
         renderItem={({ item }) => {
           const g = item.glitch;
-          const stillActive = g.expires_at ? new Date(g.expires_at).getTime() > Date.now() : true;
+          const stillActive = g.expires_at ? new Date(g.expires_at).getTime() > now : true;
           return (
             <View style={styles.item} testID={`stash-item-${g.id}`}>
               <Pressable style={{ flex: 1, gap: 4 }} onPress={() => router.push(`/glitch/${g.id}`)}>

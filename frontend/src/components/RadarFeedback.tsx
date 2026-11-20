@@ -105,7 +105,7 @@ export function RadarFeedback() {
 
           {rating ? (
             <>
-              <Text style={styles.subTitle}>WORUM GEHT'S? (OPTIONAL)</Text>
+              <Text style={styles.subTitle}>WORUM GEHT’S? (OPTIONAL)</Text>
               <View style={styles.tagRow}>
                 {TAGS.map((t) => {
                   const on = tags.includes(t);

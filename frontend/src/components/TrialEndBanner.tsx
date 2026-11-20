@@ -1,3 +1,4 @@
+import { useNow } from "@/src/lib/useNow";
 import { useEffect, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { useRouter } from "expo-router";
@@ -12,6 +13,7 @@ const LAST_DAY_MS = 24 * 60 * 60 * 1000;
 
 // Friendly nudge on the last trial day, highlighting the annual plan's saving vs. monthly.
 export function TrialEndBanner() {
+  const now = useNow();
   const router = useRouter();
   const { colors } = useTheme();
   const styles = useStyles();
@@ -25,7 +27,7 @@ export function TrialEndBanner() {
   }, [sub.trialEndsAt]);
 
   const ends = sub.trialEndsAt;
-  if (!sub.trialActive || !ends || ends - Date.now() > LAST_DAY_MS || dismissed !== false) return null;
+  if (!sub.trialActive || !ends || ends - now > LAST_DAY_MS || dismissed !== false) return null;
 
   const pkgs = sub.offerings?.current?.availablePackages ?? [];
   const annual = pkgs.find((p) => p.packageType === "ANNUAL");

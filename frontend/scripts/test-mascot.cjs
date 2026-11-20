@@ -65,10 +65,14 @@ function mountSplash() {
   const { AppSplash } = load("src/components/AppSplash.tsx", {
     react: {
       useEffect: (fn) => effects.push(fn),
+      useRef: value => ({ current: value }),
       useState: () => [visible, (value) => { visible = value; }],
     },
     "react-native": {
-      View: "View", Image: "Image", StyleSheet: { create: (s) => s },
+      View: "View", Image: "Image", Text: "Text", StyleSheet: { create: (s) => s },
+      AccessibilityInfo: { isReduceMotionEnabled: () => Promise.resolve(true) },
+      Animated: { View: "AnimatedView", Value: class { stopAnimation() {} } },
+      useAnimatedValue: () => ({ stopAnimation() {} }),
     },
     "expo-splash-screen": {
       preventAutoHideAsync: () => Promise.resolve(),
@@ -84,11 +88,11 @@ function mountSplash() {
   return { tree, scheduled, cleared, cleanups, render: AppSplash, snapshot: () => ({ visible, nativeHideCount }) };
 }
 
-test("static mascot splash dismisses after 800ms and clears its timer on unmount", () => {
+test("short mascot splash dismisses after 1200ms and clears its timer on unmount", () => {
   const mounted = mountSplash();
   assert.equal(mounted.snapshot().nativeHideCount, 1);
   assert.equal(mounted.scheduled.length, 1);
-  assert.equal(mounted.scheduled[0].ms, 800);
+  assert.equal(mounted.scheduled[0].ms, 1200);
   mounted.scheduled[0].fn();
   assert.equal(mounted.snapshot().visible, false);
   assert.equal(mounted.render(), null);
@@ -99,16 +103,21 @@ test("static mascot splash dismisses after 800ms and clears its timer on unmount
   assert.deepEqual(early.cleared, [7]);
 });
 
-test("splash contains only the static mascot without animation or radar intro", () => {
+test("splash shows mascot and title with a bounded reduced-motion-aware glitch", () => {
   const mounted = mountSplash();
   const nodes = elements(mounted.tree);
   const images = nodes.filter((node) => node.type === "Image");
   assert.equal(images.length, 1);
   assert.equal(images[0].props.source, "@/assets/images/logo-mark.png");
   assert.equal(images[0].props.fadeDuration, 0);
-  assert.deepEqual(nodes.map((node) => node.type), ["View", "Image"]);
+  assert.deepEqual(nodes.map((node) => node.type), ["View", "AnimatedView", "Image", "Text"]);
   const source = fs.readFileSync("src/components/AppSplash.tsx", "utf8");
-  assert.doesNotMatch(source, /Animated|useAnimatedValue|absoluteFillObject|mascot-wink/);
+  assert.match(source, /isReduceMotionEnabled/);
+  assert.match(source, /disposed \|\| reduced/);
+  assert.match(source, /useNativeDriver: true/);
+  assert.match(source, /animation\?\.stop/);
+  assert.doesNotMatch(source, /Animated\.loop/);
+  assert.ok(nodes.some(node => node.type === "Text" && node.props.children === "GLITCH RADAR"));
   mounted.cleanups.forEach((cleanup) => cleanup());
 });
 
