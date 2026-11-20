@@ -10,10 +10,11 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "lint": "expo lint",
-    "test:beta": "node --test scripts/test-api.cjs scripts/test-billing-startup.cjs scripts/test-mascot.cjs scripts/test-release-config.cjs scripts/test-detail-safety.cjs scripts/test-offer-target.cjs"
+    "test:beta": "node --test scripts/test-api.cjs scripts/test-billing-startup.cjs scripts/test-mascot.cjs scripts/test-release-config.cjs scripts/test-detail-safety.cjs scripts/test-offer-target.cjs",
+    "eas-build-pre-install": "npm install --global npm@11.19.1"
   },
   "dependencies": {
-    "@expo/metro-runtime": "57.0.17",
+    "@expo/metro-runtime": "57.0.18",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-vector-icons/material-design-icons": "14.0.0",
     "@tanstack/react-query": "5.102.8",
@@ -73,5 +74,5 @@
     "shell-quote": "1.11.0"
   },
   "private": true,
-  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
+  "packageManager": "npm@11.19.1"
 }
