@@ -22,7 +22,7 @@ for(const [index,url] of (build.logFiles||[]).entries()){
     const raw=await response.text();const lines=raw.split(/\r?\n/).map(line=>{try{const row=JSON.parse(line);return typeof row.msg==='string'?row.msg:typeof row.message==='string'?row.message:line;}catch{return line;}});
     const hits=[];
     for(let i=0;i<lines.length;i++)if(/npm (?:ERR!|error)|error:|FAILURE:|What went wrong|Could not resolve|Execution failed|Cannot find|does not exist|Missing:|BUILD FAILED|Exception|Unsupported|incompatible/i.test(lines[i]))hits.push(clean(lines.slice(Math.max(0,i-1),Math.min(lines.length,i+3)).join('\n')).slice(0,1400));
-    const unique=[...new Set(hits)].slice(-12);if(unique.length){excerpts.push({log:index,messages:unique});for(let n=0;n<unique.length;n+=3)notice('Expo log '+index+' part '+n,unique.slice(n,n+3).join('\n---\n'));}
+    const unique=[...new Set(hits)].slice(0,16);if(unique.length){excerpts.push({log:index,messages:unique});for(let n=0;n<unique.length;n+=2)notice('Expo initial errors '+index+' part '+n,unique.slice(n,n+2).join('\n---\n'));}
   }catch(error){notice('Log read issue',error instanceof Error?error.message:'Log unavailable');}
 }
 if(process.env.GITHUB_STEP_SUMMARY)fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'## Existing Android build diagnosis\n\n'+clean(JSON.stringify({id:build.id,status:build.status,error:build.error,excerpts},null,2))+'\n');
