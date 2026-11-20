@@ -1,3 +1,4 @@
+import { isAllowedOffer } from "@/src/lib/offerPolicy";
 import { useNow } from "@/src/lib/useNow";
 import { useState } from "react";
 import { FlatList, Pressable, Text, View } from "react-native";
@@ -27,7 +28,7 @@ export default function StashScreen() {
 
   const [tab, setTab] = useState("watch");
 
-  const items = stash.data ?? [];
+  const items = (stash.data ?? []).filter(item => isAllowedOffer(item.glitch));
   const watch = items.filter((i) => !i.claimed);
   const claimed = items.filter((i) => i.claimed);
   const shown = tab === "watch" ? watch : claimed;

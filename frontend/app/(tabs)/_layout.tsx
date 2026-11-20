@@ -16,6 +16,7 @@ export default function TabsLayout() {
           <NativeTabs.Trigger.Icon sf="dot.radiowaves.left.and.right" />
           <NativeTabs.Trigger.Label>Radar</NativeTabs.Trigger.Label>
         </NativeTabs.Trigger>
+        <NativeTabs.Trigger name="markets"><NativeTabs.Trigger.Icon sf="cart" /><NativeTabs.Trigger.Label>Märkte</NativeTabs.Trigger.Label></NativeTabs.Trigger>
         <NativeTabs.Trigger name="codes">
           <NativeTabs.Trigger.Icon sf="ticket" />
           <NativeTabs.Trigger.Label>Codes</NativeTabs.Trigger.Label>
@@ -55,6 +56,7 @@ export default function TabsLayout() {
             tabBarIcon: ({ color }) => <MaterialCommunityIcons name="radar" size={22} color={color} />,
           }}
         />
+        <Tabs.Screen name="markets" options={{ title: "MÄRKTE", tabBarIcon: ({ color }) => <MaterialCommunityIcons name="cart" size={22} color={color} /> }} />
         <Tabs.Screen
           name="codes"
           options={{

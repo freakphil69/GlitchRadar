@@ -1,3 +1,4 @@
+import { filterAllowed, isAllowedOffer } from "./offerPolicy";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { apiGet, apiPost } from "./api";
@@ -15,6 +16,7 @@ export interface GlitchFilters {
 export function useGlitches(filters: GlitchFilters) {
   return useQuery({
     queryKey: ["glitches", filters],
+    select: (rows) => filterAllowed(rows),
     queryFn: () =>
       apiGet<Glitch[]>(
         `/glitches?type=${filters.type}&sort=${filters.sort}&min_discount=${filters.minDiscount}` +
@@ -29,6 +31,7 @@ export function useGlitches(filters: GlitchFilters) {
 export function useAlarm() {
   return useQuery({
     queryKey: ["alarm"],
+    select: (rows) => filterAllowed(rows),
     queryFn: () => apiGet<AlarmGlitch[]>("/alarm"),
     refetchInterval: 30_000,
   });
@@ -41,6 +44,7 @@ export function useFacets() {
 export function useCodes(shop: string) {
   return useQuery({
     queryKey: ["codes", shop],
+    select: (rows) => filterAllowed(rows),
     queryFn: () => apiGet<Glitch[]>(`/codes?shop=${encodeURIComponent(shop)}`),
     refetchInterval: 60_000,
   });
@@ -60,6 +64,7 @@ export function useVote() {
 export function useGlitch(id: string) {
   return useQuery({
     queryKey: ["glitch", id],
+    select: (offer) => { if (!isAllowedOffer(offer)) throw new Error("Dieses Angebot ist aufgrund der Inhaltsrichtlinie ausgeblendet."); return offer; },
     queryFn: () => apiGet<Glitch>(`/glitches/${id}`),
     enabled: !!id,
   });
