@@ -2,6 +2,9 @@ name: Build verified GlitchRadar Android bundle and upload internal Play draft
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - ops/play-internal-draft-20261121
 
 permissions:
   contents: read
