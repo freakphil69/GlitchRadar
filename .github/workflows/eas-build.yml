@@ -1,12 +1,7 @@
-name: Upload verified GlitchRadar Android bundle to internal Play draft
+name: Build verified GlitchRadar Android bundle and upload internal Play draft
 
 on:
   workflow_dispatch:
-    inputs:
-      build_id:
-        description: Exact UUID of the successful Android AAB from the approved build
-        required: true
-        type: string
 
 permissions:
   contents: read
@@ -18,27 +13,62 @@ concurrency:
 jobs:
   submit:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
     defaults:
       run:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '24.22.3'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - uses: expo/expo-github-action@v8
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
-      - name: Verify destination and exact bundle, then submit
+      - name: Verify app source and prepare the next Play version code
         env:
-          BUILD_ID: ${{ inputs.build_id }}
           EXPECTED_SOURCE_SHA: '4524185abbde446d632a9b22666761f7854f36ef'
+          PLAY_VERSION_CODE: '1794862441'
         run: |
           set -euo pipefail
-          [[ "$BUILD_ID" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]
-          node -e 'const c=require("./eas.json"), a=require("./app.json");const t=c.submit.production.android;if(t.track!=="internal"||t.releaseStatus!=="draft"||a.expo.android.package!=="glitchradar.app")throw new Error("Unexpected Play destination")'
-          eas build:view "$BUILD_ID" --json > "$RUNNER_TEMP/glitchradar-build.json"
-          node -e 'const b=require(process.argv[1]);const link=b.artifacts?.buildUrl||b.artifacts?.applicationArchiveUrl||"";if(b.id!==process.env.BUILD_ID||b.status!=="FINISHED"||b.platform!=="ANDROID"||b.gitCommitHash!==process.env.EXPECTED_SOURCE_SHA||!new URL(link).pathname.endsWith(".aab"))throw new Error("Not the verified Android AAB"); console.log(`Verified AAB ${b.id}, version code ${b.appBuildVersion??"unknown"}`)' "$RUNNER_TEMP/glitchradar-build.json"
+          git diff --exit-code "$EXPECTED_SOURCE_SHA" HEAD -- .
+          node -e '
+            const fs=require("fs"), c=require("./eas.json"), a=require("./app.json");
+            const t=c.submit.production.android;
+            if(t.track!=="internal"||t.releaseStatus!=="draft"||a.expo.android.package!=="glitchradar.app"||c.build.production.android.buildType!=="app-bundle") throw Error("Unexpected Play destination or build type");
+            const v=Number(process.env.PLAY_VERSION_CODE);
+            if(!Number.isSafeInteger(v)||v<=1794862440||v>2100000000) throw Error("Invalid version code");
+            c.cli.appVersionSource="local";c.build.production.autoIncrement=false;a.expo.android.versionCode=v;
+            for(const [file,obj] of [["eas.json",c],["app.json",a]])fs.writeFileSync(file,JSON.stringify(obj,null,2)+"\n");
+          '
+          python -m pip install 'Pillow==11.3.0'
+          python scripts/render_logo.py
+          npm install --global npm@11.19.1
+          node -e 'const fs=require("fs"), p=require("./package.json");p.packageManager="npm@11.19.1";fs.writeFileSync("package.json",JSON.stringify(p,null,2)+"\n")'
+          npm ci --no-audit --no-fund
+          npm run test:beta
+          node --test scripts/test-offer-policy.cjs
+          npx --no-install tsc --noEmit
+          CI=1 npm run lint
+          CI=1 npx --no-install expo export --platform android --output-dir "$RUNNER_TEMP/glitchradar-export"
+      - name: Build AAB and verify artifact before submitting exact ID
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          PLAY_VERSION_CODE: '1794862441'
+        run: |
+          set -euo pipefail
+          eas build --platform android --profile production --non-interactive --wait --json > "$RUNNER_TEMP/glitchradar-build.json"
+          BUILD_ID="$(node -e '
+            const raw=require(process.argv[1]), list=Array.isArray(raw)?raw:[raw], b=list[0];
+            const a=b?.artifacts, url=new URL(a?.buildUrl||a?.applicationArchiveUrl||"");
+            if(list.length!==1||b.status!=="FINISHED"||b.platform!=="ANDROID"||String(b.appBuildVersion)!==process.env.PLAY_VERSION_CODE||!url.pathname.endsWith(".aab")||!(/^[0-9a-f-]{36}$/.test(b.id)))throw Error("Not the verified Android AAB");
+            require("fs").appendFileSync(process.env.GITHUB_STEP_SUMMARY, `Verified Android AAB ${b.id} (version code ${b.appBuildVersion}): ${url.href}\n`);
+            console.log(b.id);
+          ' "$RUNNER_TEMP/glitchradar-build.json")"
           eas submit --id "$BUILD_ID" --platform android --profile production --non-interactive --wait
