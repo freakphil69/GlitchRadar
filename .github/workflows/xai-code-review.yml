@@ -14,7 +14,19 @@ jobs:
     if: github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
+      - name: Check XAI_API_KEY secret
+        id: check_secret
+        env:
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+        run: |
+          if [ -n "$XAI_API_KEY" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "XAI_API_KEY secret is not set; skipping xAI Code Review."
+          fi
       - name: xAI Code Review
+        if: steps.check_secret.outputs.configured == 'true'
         uses: tarmojussila/xai-code-review@v0.1.1
         with:
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
